@@ -208,35 +208,35 @@ def suspicious_test(df_total_centroids, **kwargs):
     local_hotspots_std = df_total_centroids.loc[hotspot_mask & (df_total_centroids['is_remote'] == 0), 'std_distance_within_cluster']
 
     default_thresholds = {
-        'dis_to_all_local_hotspots_centroid_threshold': 35,
-        'dis_to_all_local_points_centroid_threshold': 0,
-        'ratio_scanning_count_threshold': 0.1,
-        'scanning_count_within_cluster_threshold': 12,
-        'std_distance_within_cluster_quantile_threshold': 0.1,
-        'box_count_within_cluster_threshold': 4,
+        'dis_hotspots_c_t': 35,
+        'dis_points_c_t': 0,
+        'ratio_scanning_t': 0.1,
+        'scanning_count_t': 12,
+        'std_quantile_t': 0.1,
+        'box_count_t': 4,
     }
 
     thresholds = {**default_thresholds, **kwargs}
 
-    dis_to_all_local_hotspots_centroid_threshold = thresholds['dis_to_all_local_hotspots_centroid_threshold']
-    dis_to_all_local_points_centroid_threshold = thresholds['dis_to_all_local_points_centroid_threshold']
-    ratio_scanning_count_threshold = thresholds['ratio_scanning_count_threshold']
-    scanning_count_within_cluster_threshold = thresholds['scanning_count_within_cluster_threshold']
+    dis_hotspots_c_t = thresholds['dis_hotspots_c_t']
+    dis_points_c_t = thresholds['dis_points_c_t']
+    ratio_scanning_t = thresholds['ratio_scanning_t']
+    scanning_count_t = thresholds['scanning_count_t']
 
-    std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds['std_distance_within_cluster_quantile_threshold'])
-    box_count_within_cluster_threshold = thresholds['box_count_within_cluster_threshold']
+    std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds['std_quantile_t'])
+    box_count_t = thresholds['box_count_t']
 
     ##################################################################################################################################################
     # 设置可以热点条件
     # verison 1.0
 
     suspicious_mask = (hotspot_mask) & (df_total_centroids['is_remote'] == 1) &\
-        (df_total_centroids['dis_to_all_local_hotspots_centroid'] >= dis_to_all_local_hotspots_centroid_threshold ) & \
-        (df_total_centroids['dis_to_all_local_points_centroid_threshold']) >= dis_to_all_local_points_centroid_threshold &\
-             ((df_total_centroids['ratio_scanning_count'] >= ratio_scanning_count_threshold) | (df_total_centroids['scanning_count_within_cluster'] >= scanning_count_within_cluster_threshold)) &\
+        (df_total_centroids['dis_to_all_local_hotspots_centroid'] >= dis_hotspots_c_t ) & \
+        (df_total_centroids['dis_points_c_t']) >= dis_points_c_t &\
+             ((df_total_centroids['ratio_scanning_count'] >= ratio_scanning_t) | (df_total_centroids['scanning_count_within_cluster'] >= scanning_count_t)) &\
               (
                 (df_total_centroids['std_distance_within_cluster'] >= std_distance_within_cluster_threshold) | \
-               ((df_total_centroids['std_distance_within_cluster'] < std_distance_within_cluster_threshold) & (df_total_centroids['box_count_within_cluster'] >= box_count_within_cluster_threshold))
+               ((df_total_centroids['std_distance_within_cluster'] < std_distance_within_cluster_threshold) & (df_total_centroids['box_count_within_cluster'] >= box_count_t))
               )
     
     df_total_centroids_with_suspicious_label = df_total_centroids.copy()
@@ -249,22 +249,22 @@ def show_test_result(df_total_centroids, threshold_name):
 
     threshold_range = range(0, 105, 5)
 
-    if threshold_name== 'dis_to_all_local_hotspots_centroid_threshold':
+    if threshold_name== 'dis_hotspots_c_t':
         threshold_range = range(0, 105, 5)
 
-    elif threshold_name== 'dis_to_all_local_points_centroid_threshold':
+    elif threshold_name== 'dis_points_c_t':
         threshold_range = range(0, 50, 2)
 
-    elif threshold_name == 'ratio_scanning_count_threshold':
+    elif threshold_name == 'ratio_scanning_t':
         threshold_range = np.arange(0, 0.55, 0.05)
 
-    elif threshold_name == 'scanning_count_within_cluster_threshold':
+    elif threshold_name == 'scanning_count_t':
         threshold_range = range(6, 37, 1)
 
-    elif threshold_name == 'std_distance_within_cluster_quantile_threshold':
+    elif threshold_name == 'std_quantile_t':
         threshold_range = np.arange(0, 1.05, 0.05)
 
-    elif threshold_name == 'box_count_within_cluster_threshold':
+    elif threshold_name == 'box_count_t':
         threshold_range = range(0, 7, 1)
 
     # 测试结果
@@ -291,8 +291,8 @@ def show_test_result(df_total_centroids, threshold_name):
 
 
 def show_thresholds_suspicious_relations(df_total_centroids):
-    thresholds = ['dis_to_all_local_hotspots_centroid_threshold', 'dis_to_all_local_points_centroid_threshold', 'ratio_scanning_count_threshold', 
-                'scanning_count_within_cluster_threshold', 'std_distance_within_cluster_quantile_threshold', 'box_count_within_cluster_threshold']
+    thresholds = ['dis_hotspots_c_t', 'dis_points_c_t', 'ratio_scanning_t', 
+                'scanning_count_t', 'std_quantile_t', 'box_count_t']
     for threshold_name in thresholds:
         show_test_result(df_total_centroids, threshold_name)
 

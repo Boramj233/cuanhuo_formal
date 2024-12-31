@@ -1,88 +1,13 @@
-from .find_hotspots import find_valid_regions
 from IPython.display import display
 from tabulate import tabulate
+
+from .find_hotspots import find_valid_regions
+from .libs import get_polyline_points, get_acode
 
 import folium
 import geopandas as gpd
 import pandas as pd
 import pickle
-import requests
-import yaml
-
-
-def get_acode(config_file_path, area_name):
-    with open(config_file_path, 'r') as f:
-        config = yaml.safe_load(f)
-    gaode_api_key = config.get('gaode_api_key')
-
-    url = 'https://restapi.amap.com/v3/geocode/geo?parameters'
-
-    params = {
-        'key': gaode_api_key,
-        'address': area_name,
-        'city': area_name,
-    }
-
-    try: 
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    
-    except requests.exceptions.RequestException as e:
-        print(f"请求失败: {e}")
-        return None
-
-
-
-def get_region_polyline(config_file_path, acode):
-    with open(config_file_path, 'r') as f:
-        config = yaml.safe_load(f)
-    gaode_api_key = config.get('gaode_api_key')
-
-    url = 'https://restapi.amap.com/v3/config/district?parameters'
-    params = {
-        'key': gaode_api_key,
-        'keywords': acode,
-        'subdistrict': 0,
-        'filter': acode,
-        'extensions': 'all',
-    }
-
-    try: 
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    
-    except requests.exceptions.RequestException as e:
-        print(f"请求失败: {e}")
-        return None
-    
-
-    
-def get_polyline_points(config_file_path, acode):
-    if len(acode) > 6:
-        acode = acode[:6]
-    data = get_region_polyline(config_file_path, acode)
-    polyline = data['districts'][0]['polyline']
-    polyline_points_list = []
-    # if '|' in polyline:
-    polylines = polyline.split('|')
-
-    for polyline in polylines:
-        polyline = polyline.split(';')
-        polyline_points = []
-        for i, coordinate in enumerate(polyline):
-            coordinate = coordinate.split(',')
-            coordinate[0], coordinate[1] = float(coordinate[1]), float(coordinate[0]) # folium (lat, lon)
-
-            # polyline_points.append((coordinate[0], coordinate[1]))
-            polyline_points.append(coordinate)
-        polyline_points_list.append(polyline_points)
-    return polyline_points_list
-
-
 
 
 def plot_clusters_with_folium(df_scanning_locations, points_size = 5, noise_size=5, polyline_points_list=[]):
@@ -171,7 +96,7 @@ def plot_clusters_with_folium(df_scanning_locations, points_size = 5, noise_size
 
 
 def main_show_results(df_total_scanning_locations, df_total_centroids, df_suspicious_dealers, df_suspicious_hotspots_parameters, \
-                    dealer_scope_dict_path, start_date_str, end_date_str, dealer_region_name, radius, min_samples, config_file_path):
+                    dealer_scope_dict_path, start_date_str, end_date_str, dealer_region_name, radius, min_samples, config_file_path, is_cal_border_dis=False):
     
     suspicious_dealers_overall_cols = ['BELONG_DEALER_NO', 'BELONG_DEALER_NAME', 'PRODUCT_GROUP_NAME']
 
@@ -180,10 +105,16 @@ def main_show_results(df_total_scanning_locations, df_total_centroids, df_suspic
         'dealer_suspicious_hotspot_count', 'suspicious_hotspot_ratio', 'dealer_total_box_count'
     ]
 
+
     dealer_cluster_cols = ['cluster_label', 'province', 'city', 'district', 'street', 'scanning_count_within_cluster', 'is_remote', 'is_suspicious',
                         'ratio_scanning_count', 'dis_to_all_local_hotspots_centroid', 'dis_to_all_local_points_centroid', 'std_distance_within_cluster', 
                         'box_count_within_cluster'
                         ]
+    
+    if is_cal_border_dis:
+            dealer_cluster_cols = ['cluster_label', 'province', 'city', 'district', 'street', 'scanning_count_within_cluster', 'is_remote', 'is_suspicious',
+                        'ratio_scanning_count', 'dis_to_all_local_hotspots_centroid', 'dis_to_all_local_points_centroid', 'std_distance_within_cluster', 
+                        'box_count_within_cluster', 'dis_border']
 
     rename_dict ={
         'remote_ratio': '开瓶异地率',
@@ -209,6 +140,7 @@ def main_show_results(df_total_scanning_locations, df_total_centroids, df_suspic
         'dis_to_overall_centroid': '热点质心到总质心的距离（质心距离）', 
         'dis_to_all_local_hotspots_centroid': '距本地热点总质心',
         'dis_to_all_local_points_centroid': '距本地点总质心',
+        'dis_border': '距范围边界',
         'avg_distance_within_cluster': '热点内各点到该热点质心距离的平均值（热点内距离均值）', 
         'std_distance_within_cluster': '簇内离散度', 
 
@@ -384,12 +316,8 @@ def main_show_results(df_total_scanning_locations, df_total_centroids, df_suspic
         print(tabulate(df_count_merged.loc[df_count_merged['数量']>5, :], headers='keys', tablefmt='pretty', showindex=False))
         print()
 
-        m = plot_clusters_with_folium(df_scanning_locations, points_size = 3, noise_size=3, polyline_points_list=polyline_points_list_total)
+        m = plot_clusters_with_folium(df_scanning_locations, points_size = 3, noise_size=1, polyline_points_list=polyline_points_list_total)
         display(m)
-
-
-
-
 
 
 def main_show_results_special(df_total_scanning_locations, df_total_centroids, df_suspicious_dealers, df_suspicious_hotspots_parameters, 
@@ -401,9 +329,8 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
 
     dealer_cluster_cols = ['cluster_label', 'province', 'city', 'district', 'street', 'scanning_count_within_cluster', 'is_remote', 'is_suspicious',
                         'ratio_scanning_count', 'dis_to_all_local_hotspots_centroid', 'dis_to_all_local_points_centroid', 'std_distance_within_cluster', 
-                        'box_count_within_cluster'
+                        'box_count_within_cluster', 'dis_border'
                         ]
-
 
     rename_dict ={
         'remote_ratio': '开瓶异地率',
@@ -429,6 +356,7 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
         'dis_to_overall_centroid': '热点质心到总质心的距离（质心距离）', 
         'dis_to_all_local_hotspots_centroid': '距本地热点总质心',
         'dis_to_all_local_points_centroid': '距本地点总质心',
+        'dis_border': '距范围边界',
         'avg_distance_within_cluster': '热点内各点到该热点质心距离的平均值（热点内距离均值）', 
         'std_distance_within_cluster': '簇内离散度', 
 
@@ -587,10 +515,6 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
         print(tabulate(df_dealer_info_dense, headers='keys', tablefmt='pretty', showindex=False))
         print()
 
-
-
-        
-
         # df_scanning_locations = df_total_scanning_locations.loc[df_total_scanning_locations.BELONG_DEALER_NO == dealer_id]
         # df_scanning_locations_dense = df_total_scanning_locations_dense.loc[df_total_scanning_locations_dense.BELONG_DEALER_NO == dealer_id]
 
@@ -601,6 +525,8 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
         df_city_count['OPEN_PROVINCE'] = df_city_count['OPEN_PROVINCE'].apply(
             lambda x: x[:2] if x in ['天津市', '北京市', '上海市', '重庆市'] else x
         )
+
+
         df_valid_scope, _ = find_valid_regions(dealer_id, product_group_id, start_date_str, dealer_scope_dict)
         df_count_merged = pd.DataFrame()
 
@@ -653,7 +579,7 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
                 for x in polyline_points_list:
                     polyline_points_list_total.append(x)
 
-                df_dealer_cluster = df_dealer_hotspots.loc[:, dealer_cluster_cols]
+        df_dealer_cluster = df_dealer_hotspots.loc[:, dealer_cluster_cols]
         print(f'---经销商热点信息---')
         print()
         print('可疑一级热点标签:')
@@ -663,7 +589,7 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
         print(tabulate(df_dealer_cluster, headers='keys', tablefmt='pretty', showindex=False))
         print()
         print('---一级热点地图---')
-        m = plot_clusters_with_folium(df_dealer_scanning_location, points_size = 3, noise_size=3, polyline_points_list=polyline_points_list_total)
+        m = plot_clusters_with_folium(df_dealer_scanning_location, points_size = 3, noise_size=1, polyline_points_list=polyline_points_list_total)
         display(m)
 
 
@@ -675,5 +601,5 @@ def main_show_results_special(df_total_scanning_locations, df_total_centroids, d
         print(tabulate(df_dealer_cluster_dense, headers='keys', tablefmt='pretty', showindex=False))
         print()
         print('---二级热点地图---')
-        m2 = plot_clusters_with_folium(df_dealer_scanning_location_dense, points_size = 3, noise_size=3, polyline_points_list=polyline_points_list_total)
+        m2 = plot_clusters_with_folium(df_dealer_scanning_location_dense, points_size = 3, noise_size=1, polyline_points_list=polyline_points_list_total)
         display(m2)

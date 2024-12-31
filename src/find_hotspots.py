@@ -2,13 +2,11 @@ from datetime import datetime
 from geopy.distance import geodesic
 from sklearn.cluster import DBSCAN
 
-import folium
-import geopandas as gpd
+from .libs import get_address_from_lat_lon, get_acode, get_polyline_points
+
 import numpy as np
 import pandas as pd
 import pickle
-import requests
-import yaml
 
 ### Find hotspots
 def find_clusters_for_dealer(df_cleaned, dealer_id, product_group_id, start_date_str, end_date_str, radius, min_samples):
@@ -34,28 +32,6 @@ def find_clusters_for_dealer(df_cleaned, dealer_id, product_group_id, start_date
 
     return df_scanning_locations
 
-
-def get_address_from_lat_lon(location, config_file_path):  
-
-    with open(config_file_path, 'r') as f:
-        config = yaml.safe_load(f)
-    gaode_api_key = config.get('gaode_api_key')
-
-    url = 'https://restapi.amap.com/v3/geocode/regeo?parameters'
-    params = {
-        'key': gaode_api_key,
-        'location':  location, # 经度在前，纬度在后 （lon, lat)
-    }
-
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status() # 检查请求是否成功
-        data = response.json()
-        return data
-    except requests.exceptions.RequestException as e:
-        print(f"请求失败: {e}")
-        return None
-    
 
 def get_centroids(df_scanning_locations, config_file_path):
 
@@ -94,87 +70,6 @@ def get_centroids(df_scanning_locations, config_file_path):
 
         return df_centroids
     return pd.DataFrame()
-
-
-
-def plot_clusters_with_folium(df_scanning_locations, points_size = 5, noise_size=5):
-
-    gdf = gpd.GeoDataFrame(df_scanning_locations, geometry=gpd.points_from_xy(df_scanning_locations.LONGITUDE, df_scanning_locations.LATITUDE)) # x -> longitude ; y -> latitude
-
-    m = folium.Map(location=[gdf['LATITUDE'].mean(), gdf['LONGITUDE'].mean()], 
-                    tiles= 'https://wprd01.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7',
-                    attr='高德-常规图',
-                    zoom_start=7,
-                )
-
-    unique_clusters = gdf['cluster_label'].sort_values().unique()
-
-    colors = [
-        '#1f77b4', '#ff7f0e', '#2ca02c', '#aab7ff', '#9467bd',
-        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
-        '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5', '#c49c94',
-        '#f7b6d2', '#dbdb8d', '#9edae5', '#f5b041',  '#d62728'
-    ]
-
-    for i, cluster in enumerate(unique_clusters):
-        if cluster != -1:  # 排除噪声点
-            cluster_points = gdf[gdf['cluster_label'] == cluster]
-
-            color_index = cluster % 20  
-            color = colors[color_index]
-            for _, row in cluster_points.iterrows():
-                
-                folium.CircleMarker(
-                    location=(row['LATITUDE'], row['LONGITUDE']),
-                    radius=points_size,
-                    color=color,
-                    fill=True,
-                    fill_color=color,
-                    fill_opacity=0.6,
-                    popup=f'Cluster: {cluster}'
-                ).add_to(m)
-
-    # 绘制噪声点（可选）
-    noise_points = gdf[gdf['cluster_label'] == -1]
-    for _, row in noise_points.iterrows():
-        folium.CircleMarker(
-            location=(row['LATITUDE'], row['LONGITUDE']),
-            radius=noise_size,
-            color='red',
-            fill=True,
-            fill_color='red',
-            fill_opacity=0.6,
-            popup='Noise'
-        ).add_to(m)
-
-    legend_html = '''
-    <div style="
-        position: fixed; 
-        top: 0px; left: 0px; 
-        width: 120px; height: auto; 
-        border: 1px solid grey; 
-        z-index: 9999; font-size: 12px; 
-        background-color: rgba(255, 255, 255, 0.6); 
-        padding: 2px; 
-        border-radius: 8px; 
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3); 
-        overflow-y: auto; max-height: 200px;">
-        <b>Cluster Legend</b><br>
-    '''
-    for i, cluster in enumerate(unique_clusters):
-        if cluster != -1:
-            color_index = cluster % 20
-            color = colors[color_index]
-            legend_html += f'<i style="background:{color}; width: 15px; height: 15px; display:inline-block; margin-right: 5px;"></i> Cluster {cluster}<br>'
-    legend_html += '</div>'
-
-    # 将图例添加到地图
-    folium.Marker(
-        location=[gdf['LATITUDE'].mean(), gdf['LONGITUDE'].mean()],
-        icon=folium.DivIcon(html=legend_html)
-    ).add_to(m)
-
-    return m
 
 
 def get_scanning_locations_and_centroids(df_cleaned, dealer_id, product_group_id, start_date_str, end_date_str, radius, min_samples, config_file_path):
@@ -457,6 +352,7 @@ def find_hotspots_for_region(df_cleaned, product_group_id, start_date_str, end_d
     return df_total_centroids, df_total_scanning_locations, dealers_not_within_archive
 
 
+
 def calculate_distances_to_local_centroids_for_centroids(df_total_scanning_locations, df_total_centroids, dealers_not_within_archive):
     ids_within_archive = set(df_total_centroids.dealer_id.unique()) - set([item[0] for item in dealers_not_within_archive])
     centroids_all_local_points_dict = {}
@@ -525,8 +421,85 @@ def calculate_distances_to_local_centroids_for_centroids(df_total_scanning_locat
     return df_total_centroids
 
 
+def find_closest_point_geodesic(fixed_point, coordinates):
+    # min_distance = float('inf')
+    min_distance = float('99999')
+    closest_point = None
+
+    for coord in coordinates:
+        coordinate = (coord[0], coord[1])
+        distance = geodesic(fixed_point, coordinate).kilometers  # Distance in kilometers
+        if distance < min_distance:
+            min_distance = distance
+            closest_point = coord
+
+    return closest_point, min_distance
+
+
+def calculate_min_distance_to_border(df_total_centroids, product_group_id, start_date_str, end_date_str, config_file_path, dealer_scope_dict_path):
+
+    with open(dealer_scope_dict_path, 'rb') as f:
+        dealer_scope_dict = pickle.load(f)
+    
+    df_total_hotspots = df_total_centroids.loc[(~(df_total_centroids['cluster_label'].isin([-1, -2]))) & (df_total_centroids['is_dealer_within_archive']==1) , :].reset_index(drop=True)
+    # df_total_hotspots['dis_border'] = float('inf')
+
+    for i in range(len(df_total_hotspots)):
+        dealer_id = df_total_hotspots.loc[i, 'dealer_id']
+
+        df_valid_scope, _ = find_valid_regions(dealer_id, product_group_id, start_date_str, dealer_scope_dict)
+
+        if df_valid_scope.empty:
+            df_valid_scope_end, _ = find_valid_regions(dealer_id, product_group_id, end_date_str, dealer_scope_dict)
+
+            if df_valid_scope_end.empty:
+                df_total_hotspots.loc[i, 'dis_border'] = float(('inf'))
+                # print(f'{dealer_id} 有效经营范围为空')
+                continue
+            else:
+                df_valid_scope = df_valid_scope_end
+    
+        # acodes = list(df_valid_scope['AREA_CODE']) # 有一部分公司的area_Code 与高德api的acode 不一致！！！！
+        # 添加当前（月初或月末）有效经营范围的区域划分线
+
+        df_valid_scope = df_valid_scope.reset_index(drop=True)
+        acodes = []
+        for j in range(len(df_valid_scope)):
+            address = df_valid_scope.loc[j, ['PROVINCE', 'CITY', 'DISTRICT', 'STREET']].tolist()
+            area_name=''
+            for item in address:
+                if item != '-1':
+                    area_name += item
+                else:
+                    break
+            acode = get_acode(config_file_path, area_name, sleep=0.1)['geocodes'][0]['adcode']
+            acodes.append(acode)
+        
+        polyline_points_list_total = []
+        if acodes:
+            for acode in acodes:
+                polyline_points_list = get_polyline_points(config_file_path, acode, sleep=0.1)
+                for x in polyline_points_list:
+                    polyline_points_list_total.append(x)
+
+        fixed_point = (df_total_hotspots.loc[i, 'LATITUDE'], df_total_hotspots.loc[i,'LONGITUDE'])
+        flat_coordinates = [point for sublist in polyline_points_list_total for point in sublist]
+
+        closest_point, min_distance = find_closest_point_geodesic(fixed_point, flat_coordinates)
+
+        df_total_hotspots.loc[i, 'dis_border'] = round(min_distance, 2)
+
+    df_total_hotspots_to_merge = df_total_hotspots.loc[:, ['dealer_id', 'cluster_label', 'dis_border']]
+    df_total_centroids_new = pd.merge(df_total_centroids, df_total_hotspots_to_merge, on=['dealer_id', 'cluster_label'], how='left')
+
+    df_total_centroids_new.loc[(df_total_centroids_new['is_remote'] == 0) & (~(df_total_centroids_new['cluster_label'].isin([-1, -2]))), 'dis_border'] = -df_total_centroids_new['dis_border']
+
+    return df_total_centroids_new
+        
+
+
 def main_find_hotspots(df_cleaned, product_group_id, start_date_str, end_date_str, radius, min_samples, config_file_path,
-                                    dealer_scope_dict_path, end_scope = False):
+                                    dealer_scope_dict_path, end_scope = False, cal_border=False):
     
     df_total_centroids, df_total_scanning_locations, dealers_not_within_archive = \
         find_hotspots_for_region(df_cleaned, product_group_id, start_date_str, end_date_str, radius, min_samples, config_file_path,
@@ -535,5 +508,91 @@ def main_find_hotspots(df_cleaned, product_group_id, start_date_str, end_date_st
     df_total_centroids =\
         calculate_distances_to_local_centroids_for_centroids(df_total_scanning_locations, df_total_centroids, dealers_not_within_archive)
     
+    if cal_border:
+        df_total_centroids =\
+            calculate_min_distance_to_border(df_total_centroids, product_group_id, start_date_str, end_date_str, config_file_path, dealer_scope_dict_path)
+    
     return df_total_centroids, df_total_scanning_locations
     
+
+def main_find_hotspots_special(df_total_centroids_sparse, df_total_scanning_locations_sparse, large_hotspots_threshold,
+                               df_cleaned, product_group_id, start_date_str, end_date_str, radius_dense, min_samples_dense,
+                               config_file_path, dealer_scope_dict_path):
+
+    large_hotspots_mask = (~(df_total_centroids_sparse['cluster_label'].isin([-1, -2]))) &\
+                        (df_total_centroids_sparse['scanning_count_within_cluster'] >= large_hotspots_threshold)
+    
+    df_large_hotspots= df_total_centroids_sparse.loc[large_hotspots_mask, :]
+    df_large_hotspots_label = df_large_hotspots.loc[:, ['dealer_id', 'cluster_label']]
+    df_large_hotspots_label = df_large_hotspots_label.reset_index(drop=True).rename(columns={
+        'dealer_id': 'BELONG_DEALER_NO'
+    })
+
+    df_large_hotspots_scanning_locations = pd.merge(df_large_hotspots_label, df_total_scanning_locations_sparse, on=['BELONG_DEALER_NO', 'cluster_label'], how='left')
+    # print(len(df_large_hotspots_scanning_locations))
+    # print(len(df_total_scanning_locations_sparse))
+
+    print(f'大型热点内的扫码点数量占比: {len(df_large_hotspots_scanning_locations) / len(df_total_scanning_locations_sparse)}')
+    set_diff = set(df_large_hotspots_scanning_locations.columns) - set(df_cleaned.columns) 
+    df_large_hotspots_scanning_locations_cleaned = df_large_hotspots_scanning_locations.drop(columns=set_diff)
+
+
+    # dense part
+    # radius_dense, min_samples_dense = dbscan_parameters_tuple_dense
+
+    df_total_centroids_dense, df_total_scanning_locations_dense, dealers_not_within_archive_dense =\
+        find_hotspots_for_region(df_large_hotspots_scanning_locations_cleaned, product_group_id, start_date_str, end_date_str, radius_dense, min_samples_dense, config_file_path,
+                                    dealer_scope_dict_path)
+    df_total_centroids_dense = df_total_centroids_dense.drop(columns=['total_scanning_count_for_dealer', 'box_count_ratio_for_cluster', 'ratio_scanning_count'])
+
+    # dis_to_all_local_points_centroid, centroid_all_local_points_coordinate
+    df_all_local_points_location = df_total_centroids_sparse.loc[:, ['dealer_id', 'centroid_all_local_points_coordinate']].drop_duplicates()
+    df_total_centroids_dense = pd.merge(df_total_centroids_dense, df_all_local_points_location, on='dealer_id', how='left')
+
+    def calculate_distance_points(row):
+        # 如果有缺失值，返回 NaN（不进行计算）
+
+        if pd.isna(row["LATITUDE"]) or pd.isna(row["LONGITUDE"]) or pd.isna(row["centroid_all_local_points_coordinate"]) :
+            return np.nan  # 或者返回 None, NaN: `return pd.NA`
+        # 否则，计算距离
+        return geodesic(
+            (row["LATITUDE"], row["LONGITUDE"]),
+            row["centroid_all_local_points_coordinate"]
+        ).kilometers
+
+    df_total_centroids_dense["dis_to_all_local_points_centroid"] = df_total_centroids_dense.apply(
+            calculate_distance_points,
+            axis=1
+        )
+    df_total_centroids_dense["dis_to_all_local_points_centroid"] = np.round(df_total_centroids_dense["dis_to_all_local_points_centroid"], 2)
+
+    # dis_to_all_local_hotspots_centroid, centroid_all_local_hotspots_coordinate
+    df_all_local_hotspots_location = df_total_centroids_sparse.loc[:, ['dealer_id', 'centroid_all_local_hotspots_coordinate']].drop_duplicates()
+    df_total_centroids_dense = pd.merge(df_total_centroids_dense, df_all_local_hotspots_location, on='dealer_id', how='left')
+    # print(df_total_centroids_dense.shape)
+    def calculate_distance_hotspots(row):
+        # 如果有缺失值，返回 NaN（不进行计算）
+
+        if pd.isna(row["LATITUDE"]) or pd.isna(row["LONGITUDE"]) or pd.isna(row["centroid_all_local_hotspots_coordinate"]) :
+            return np.nan  # 或者返回 None, NaN: `return pd.NA`
+        # 否则，计算距离
+        return geodesic(
+            (row["LATITUDE"], row["LONGITUDE"]),
+            row["centroid_all_local_hotspots_coordinate"]
+        ).kilometers
+
+    df_total_centroids_dense["dis_to_all_local_hotspots_centroid"] = df_total_centroids_dense.apply(
+            calculate_distance_hotspots,
+            axis=1
+        )
+    df_total_centroids_dense["dis_to_all_local_hotspots_centroid"] = np.round(df_total_centroids_dense["dis_to_all_local_hotspots_centroid"], 2)
+
+    # ratio_scanning_count ,'total_scanning_count_for_dealer'
+    df_total_centroids_dense = pd.merge(df_total_centroids_dense, df_total_centroids_sparse[['dealer_id', 'total_scanning_count_for_dealer']].drop_duplicates(), 
+                                        on='dealer_id', how='left')
+    df_total_centroids_dense['ratio_scanning_count'] = (df_total_centroids_dense['scanning_count_within_cluster'] / df_total_centroids_dense['total_scanning_count_for_dealer']).round(2)
+    # print(df_total_centroids_dense.shape)
+    df_total_centroids_dense = calculate_min_distance_to_border(df_total_centroids_dense, product_group_id, start_date_str, end_date_str,
+                                                                config_file_path, dealer_scope_dict_path)
+
+    return df_total_centroids_dense, df_total_scanning_locations_dense

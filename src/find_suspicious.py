@@ -1,5 +1,3 @@
-from geopy.distance import geodesic
-
 import pandas as pd
 import numpy as np
 
@@ -12,38 +10,37 @@ def filter_suspicious_hotspot(df_total_centroids, **kwargs):
     local_hotspots_std = df_total_centroids.loc[hotspot_mask & (df_total_centroids['is_remote'] == 0), 'std_distance_within_cluster']
 
     default_thresholds = {
-        'dis_to_all_local_hotspots_centroid_threshold': 35,
-        'dis_to_all_local_points_centroid_threshold': 0,
-        'ratio_scanning_count_threshold': 0.1,
-        'scanning_count_within_cluster_threshold': 12,
-        'std_distance_within_cluster_quantile_threshold': 0.1,
-        'box_count_within_cluster_threshold': 4,
+        'dis_hotspots_c_t': 30,
+        'dis_points_c_t': 0,
+        'ratio_scanning_t': 0.1,
+        'scanning_count_t': 12,
+        'std_quantile_t': 0.1,
+        'box_count_t': 4,
     }
 
     thresholds = {**default_thresholds, **kwargs}
 
-    dis_to_all_local_hotspots_centroid_threshold = thresholds['dis_to_all_local_hotspots_centroid_threshold']
-    dis_to_all_local_points_centroid_threshold = thresholds['dis_to_all_local_points_centroid_threshold']
-    ratio_scanning_count_threshold = thresholds['ratio_scanning_count_threshold']
-    scanning_count_within_cluster_threshold = thresholds['scanning_count_within_cluster_threshold']
+    dis_hotspots_c_t = thresholds['dis_hotspots_c_t']
+    dis_points_c_t = thresholds['dis_points_c_t']
+    ratio_scanning_t = thresholds['ratio_scanning_t']
+    scanning_count_t = thresholds['scanning_count_t']
 
-    std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds['std_distance_within_cluster_quantile_threshold'])
-    box_count_within_cluster_threshold = thresholds['box_count_within_cluster_threshold']
+    std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds['std_quantile_t'])
+    box_count_t = thresholds['box_count_t']
 
     ##################################################################################################################################################
     # 设置可以热点条件
     # verison 1.0
 
     suspicious_mask = (hotspot_mask) & (df_total_centroids['is_remote'] == 1) &\
-        (df_total_centroids['dis_to_all_local_hotspots_centroid'] >= dis_to_all_local_hotspots_centroid_threshold ) & \
-        (df_total_centroids['dis_to_all_local_points_centroid'] >= dis_to_all_local_points_centroid_threshold) &\
-             ((df_total_centroids['ratio_scanning_count'] >= ratio_scanning_count_threshold) | (df_total_centroids['scanning_count_within_cluster'] >= scanning_count_within_cluster_threshold)) &\
+        (df_total_centroids['dis_to_all_local_hotspots_centroid'] >= dis_hotspots_c_t ) & \
+        (df_total_centroids['dis_to_all_local_points_centroid'] >= dis_points_c_t) &\
+             ((df_total_centroids['ratio_scanning_count'] >= ratio_scanning_t) | (df_total_centroids['scanning_count_within_cluster'] >= scanning_count_t)) &\
               (
                 (df_total_centroids['std_distance_within_cluster'] >= std_distance_within_cluster_threshold) | \
-               ((df_total_centroids['std_distance_within_cluster'] < std_distance_within_cluster_threshold) & (df_total_centroids['box_count_within_cluster'] >= box_count_within_cluster_threshold))
+               ((df_total_centroids['std_distance_within_cluster'] < std_distance_within_cluster_threshold) & (df_total_centroids['box_count_within_cluster'] >= box_count_t))
               )
     
-
     ###################################################################################################################################################
     
     df_total_centroids_with_suspicious_label = df_total_centroids.copy()
@@ -59,12 +56,12 @@ def filter_suspicious_hotspot(df_total_centroids, **kwargs):
 
     df_suspicious_hotspots_parameters = pd.DataFrame(
         {
-            '距本地热点总质心的距离阈值':  dis_to_all_local_hotspots_centroid_threshold,
-            '距本地扫码点总质心的距离阈值': dis_to_all_local_points_centroid_threshold,
-            '该热点扫码量占比阈值': ratio_scanning_count_threshold,
-            '簇内扫码量阈值': scanning_count_within_cluster_threshold,
+            '距本地热点总质心的距离阈值':  dis_hotspots_c_t,
+            '距本地扫码点总质心的距离阈值': dis_points_c_t,
+            '该热点扫码量占比阈值': ratio_scanning_t,
+            '簇内扫码量阈值': scanning_count_t,
             '簇内离散度阈值': round(std_distance_within_cluster_threshold, 2),
-            '紧密热点的箱数阈值': box_count_within_cluster_threshold,
+            '紧密热点的箱数阈值': box_count_t,
         }, index=[0]
     )
     
@@ -72,12 +69,86 @@ def filter_suspicious_hotspot(df_total_centroids, **kwargs):
 
 
 
-def find_suspicious_hotspots_generate_dealer_info(df_total_scanning_locations, df_total_centroids, **thresholds):
+def filter_suspicious_hotspot_special(df_total_centroids, **kwargs):
+
+    hotspot_mask = ~(df_total_centroids['cluster_label'].isin([-2, -1]))
+
+    local_hotspots_std = df_total_centroids.loc[hotspot_mask & (df_total_centroids['is_remote'] == 0), 'std_distance_within_cluster']
+
+    default_thresholds = {
+        'dis_hotspots_c_t': 30,
+        'dis_points_c_t': 0,
+        'dis_border_t': 5,
+        'ratio_scanning_t': 0.1,
+        'scanning_count_t': 12,
+        'std_quantile_t': 0.1,
+        'box_count_t': 4,
+    }
+
+    thresholds = {**default_thresholds, **kwargs}
+
+    dis_hotspots_c_t = thresholds['dis_hotspots_c_t']
+    dis_points_c_t = thresholds['dis_points_c_t']
+    dis_border_t = thresholds['dis_border_t']
+    ratio_scanning_t = thresholds['ratio_scanning_t']
+    scanning_count_t = thresholds['scanning_count_t']
+
+    std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds['std_quantile_t'])
+    box_count_t = thresholds['box_count_t']
+
+    ##################################################################################################################################################
+    # 设置可以热点条件
+    # verison 1.0
+
+    suspicious_mask = (hotspot_mask) & (df_total_centroids['is_remote'] == 1) &\
+        (df_total_centroids['dis_to_all_local_hotspots_centroid'] >= dis_hotspots_c_t ) & \
+        (df_total_centroids['dis_to_all_local_points_centroid'] >= dis_points_c_t) &\
+        (df_total_centroids['dis_border'] >= dis_border_t) &\
+             ((df_total_centroids['ratio_scanning_count'] >= ratio_scanning_t) | (df_total_centroids['scanning_count_within_cluster'] >= scanning_count_t)) &\
+              (
+                (df_total_centroids['std_distance_within_cluster'] >= std_distance_within_cluster_threshold) | \
+               ((df_total_centroids['std_distance_within_cluster'] < std_distance_within_cluster_threshold) & (df_total_centroids['box_count_within_cluster'] >= box_count_t))
+              )
+    
+    ###################################################################################################################################################
+    
+    df_total_centroids_with_suspicious_label = df_total_centroids.copy()
+    df_total_centroids_with_suspicious_label.loc[suspicious_mask, 'is_suspicious'] = 1
+    df_total_centroids_with_suspicious_label.loc[~suspicious_mask, 'is_suspicious'] = 0
+    df_total_centroids_with_suspicious_label.loc[~hotspot_mask, 'is_suspicious'] = df_total_centroids_with_suspicious_label.loc[~hotspot_mask, 'cluster_label']
+    # df_total_centroids_with_suspicious_label['is_suspicious'] = df_total_centroids_with_suspicious_label['is_suspicious'].fillna(0).astype(int)
+ 
+    df_suspicious_hotspots = df_total_centroids_with_suspicious_label.loc[
+        df_total_centroids_with_suspicious_label.is_suspicious == 1, :].drop(columns= ['is_suspicious']).reset_index(drop=True)
+    
+    df_total_centroids_with_suspicious_label['is_suspicious'] = df_total_centroids_with_suspicious_label['is_suspicious'].astype(int)
+
+    df_suspicious_hotspots_parameters = pd.DataFrame(
+        {
+            '距本地热点总质心的距离阈值':  dis_hotspots_c_t,
+            '距本地扫码点总质心的距离阈值': dis_points_c_t,
+            '距边界最小距离阈值': dis_border_t,
+            '该热点扫码量占比阈值': ratio_scanning_t,
+            '簇内扫码量阈值': scanning_count_t,
+            '簇内离散度阈值': round(std_distance_within_cluster_threshold, 2),
+            '紧密热点的箱数阈值': box_count_t,
+        }, index=[0]
+    )
+    
+    return df_suspicious_hotspots, df_total_centroids_with_suspicious_label, df_suspicious_hotspots_parameters
+
+
+
+def find_suspicious_hotspots_generate_dealer_info(df_total_scanning_locations, df_total_centroids, is_cal_border_dis=False, **thresholds):
     df_total_scanning_locations_features = df_total_scanning_locations.copy()
     df_hotspots = df_total_centroids.loc[~(df_total_centroids['cluster_label'].isin([-2, -1])), :]
     df_hotspots = df_hotspots.drop_duplicates(subset=['dealer_id', 'cluster_label']) # 可以不加drop_duplicates
 
-    df_suspicious_hotspots, df_total_centroids, df_suspicious_hotspots_parameters = filter_suspicious_hotspot(df_total_centroids, **thresholds)
+    if is_cal_border_dis:
+        df_suspicious_hotspots, df_total_centroids, df_suspicious_hotspots_parameters = filter_suspicious_hotspot_special(df_total_centroids, **thresholds)
+    else:
+        df_suspicious_hotspots, df_total_centroids, df_suspicious_hotspots_parameters = filter_suspicious_hotspot(df_total_centroids, **thresholds)
+
     # print(f'std_distance_within_cluster_threshold: {std_distance_within_cluster_threshold}')
     print(f'当前规则下可疑热点数： {len(df_suspicious_hotspots)}')
     # print("=" * 150)
@@ -131,7 +202,6 @@ def find_suspicious_hotspots_generate_dealer_info(df_total_scanning_locations, d
     
 
 def filter_suspicious_dealers(df_result_within_archive):
-    ############## 可以经销商条件 ############
     df_suspicious_dealers = df_result_within_archive.loc[
         df_result_within_archive['dealer_suspicious_hotspot_count'] > 0, :
     ].reset_index(drop=True)
@@ -139,15 +209,14 @@ def filter_suspicious_dealers(df_result_within_archive):
     return df_suspicious_dealers
 
 
-def main_find_suspicious(df_total_scanning_locations, df_total_centroids, **thresholds):
-    # df_total_centroids = calculate_distances_to_local_centroids_for_centroids(df_total_scanning_locations, df_total_centroids, dealers_not_within_archive)
-    
+def main_find_suspicious(df_total_scanning_locations, df_total_centroids, is_cal_border_dis=False, **thresholds):
+
     df_dealers_within_archive, df_dealers_without_archive, df_total_centroids,  df_suspicious_hotspots_parameters = \
-    find_suspicious_hotspots_generate_dealer_info(df_total_scanning_locations, df_total_centroids, **thresholds)
+    find_suspicious_hotspots_generate_dealer_info(df_total_scanning_locations, df_total_centroids, is_cal_border_dis, **thresholds)
 
     df_suspicious_dealers = filter_suspicious_dealers(df_dealers_within_archive)
 
     df_suspicious_dealers = df_suspicious_dealers.sort_values(by='BELONG_DEALER_NO')
 
-    # return df_suspicious_dealers, df_total_centroids, df_suspicious_hotspots_parameters, df_dealers_within_archive, df_dealers_without_archive,  df_suspicious_hotspots
     return df_suspicious_dealers, df_total_centroids, df_suspicious_hotspots_parameters, df_dealers_without_archive
+

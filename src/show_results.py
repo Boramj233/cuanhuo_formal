@@ -124,11 +124,13 @@ def plot_clusters_with_folium(
 
     return m
 
+
 def display_forth_title(title):
-    display(Markdown(f'#### {title}'))
+    display(Markdown(f"#### {title}"))
+
 
 def display_fifth_title(title):
-    display(Markdown(f'##### {title}'))
+    display(Markdown(f"##### {title}"))
 
 
 def main_show_results(
@@ -148,25 +150,25 @@ def main_show_results(
         "PRODUCT_GROUP_NAME",
     ]
 
-            # "簇半径": radius,
-            # "簇内最少样本数": min_samples,
-            # "距本地热点总质心的距离阈值": dis_hotspots_c_t,
-            # "距本地扫码点总质心的距离阈值": dis_points_c_t,
-            # "距边界最小距离阈值": dis_border_t,
-            # "热点扫码量占比阈值": ratio_scanning_t,
-            # "热点扫码量阈值": scanning_count_t,
-            # "簇内离散度阈值": round(std_distance_within_cluster_threshold, 2),
-            # "紧密热点的箱数阈值": box_count_t,
+    # "簇半径": radius,
+    # "簇内最少样本数": min_samples,
+    # "距本地热点总质心的距离阈值": dis_hotspots_c_t,
+    # "距本地扫码点总质心的距离阈值": dis_points_c_t,
+    # "距边界最小距离阈值": dis_border_t,
+    # "热点扫码量占比阈值": ratio_scanning_t,
+    # "热点扫码量阈值": scanning_count_t,
+    # "簇内离散度阈值": round(std_distance_within_cluster_threshold, 2),
+    # "紧密热点的箱数阈值": box_count_t,
 
-            # "radius": radius,
-            # "min_samples": min_samples,
-            # "dis_hotspots_c_t": dis_hotspots_c_t,
-            # "dis_points_c_t": dis_points_c_t,
-            # "dis_border_t": dis_border_t,
-            # "ratio_scanning_t": ratio_scanning_t,
-            # "scanning_count_t": scanning_count_t,
-            # "std_distance_t": round(std_distance_within_cluster_threshold, 2),
-            # "box_count_t": box_count_t,
+    # "radius": radius,
+    # "min_samples": min_samples,
+    # "dis_hotspots_c_t": dis_hotspots_c_t,
+    # "dis_points_c_t": dis_points_c_t,
+    # "dis_border_t": dis_border_t,
+    # "ratio_scanning_t": ratio_scanning_t,
+    # "scanning_count_t": scanning_count_t,
+    # "std_distance_t": round(std_distance_within_cluster_threshold, 2),
+    # "box_count_t": box_count_t,
 
     rename_dict = {
         "radius": "簇半径",
@@ -178,11 +180,9 @@ def main_show_results(
         "scanning_count_t": "热点扫码量阈值",
         "std_distance_t": "热点离散度阈值",
         "box_count_t": "紧密热点的箱数阈值",
-
         "BELONG_DEALER_NO": "经销商编码",
         "BELONG_DEALER_NAME": "经销商名称",
         "PRODUCT_GROUP_NAME": "品项名称",
-
         # "remote_ratio": "开瓶异地率",
         # "total_scanning_count": "扫码总量",
         # "remote_scanning_count": "异地扫码量",
@@ -235,7 +235,9 @@ def main_show_results(
         # "dealer_suspicious_hotspot_dense_count": "可疑二级热点数量",
     }
 
-    df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(columns=rename_dict)
+    df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(
+        columns=rename_dict
+    )
     df_suspicious_dealers = df_dealer_results.loc[
         df_dealer_results.is_dealer_suspicious == 1, :
     ]
@@ -247,7 +249,11 @@ def main_show_results(
     # print(
     #     f"-------------------基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下-------------------"
     # )
-    display_forth_title("-"*30 + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下" + "-"*30)
+    display_forth_title(
+        "-" * 30
+        + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
+        + "-" * 30
+    )
     print()
 
     # print("---模型参数---")
@@ -273,17 +279,22 @@ def main_show_results(
 
     # print("---经销商数量统计---")
     display_fifth_title("经销商数量统计")
-    df_region_dealer_statistics = pd.DataFrame({
-        '扫码经销商总数': df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
-        '经营范围未归档经销商数量': df_total_scanning_locations.loc[df_total_scanning_locations['is_dealer_within_archive'] == 0, :].BELONG_DEALER_NO.nunique(),
-        '当前规则下可疑经销商数量': df_suspicious_dealers.shape[0]
-    }, index=[0])
+    df_region_dealer_statistics = pd.DataFrame(
+        {
+            "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
+            "经营范围未归档经销商数量": df_total_scanning_locations.loc[
+                df_total_scanning_locations["is_dealer_within_archive"] == 0, :
+            ].BELONG_DEALER_NO.nunique(),
+            "当前规则下可疑经销商数量": df_suspicious_dealers.shape[0],
+        },
+        index=[0],
+    )
     df_region_dealer_statistics_styled = (
         df_region_dealer_statistics.style.set_table_styles(
             [
                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
                 {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]  
+            ]
         ).hide(axis="index")
     )
     display(df_region_dealer_statistics_styled)
@@ -311,13 +322,12 @@ def main_show_results(
             [
                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
                 {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]  
+            ]
         ).hide(axis="index")
     )
     display(df_suspicious_dealers_to_show_styled)
     print()
     print("*" * 150)
-
 
     print()
     print("可疑经销商详细信息如下:")
@@ -365,7 +375,6 @@ def main_show_results_special(
         "PRODUCT_GROUP_NAME",
     ]
 
-
     rename_dict = {
         "radius": "簇半径",
         "min_samples": "簇内最少样本数",
@@ -376,11 +385,9 @@ def main_show_results_special(
         "scanning_count_t": "热点扫码量阈值",
         "std_distance_t": "热点离散度阈值",
         "box_count_t": "紧密热点的箱数阈值",
-
         "BELONG_DEALER_NO": "经销商编码",
         "BELONG_DEALER_NAME": "经销商名称",
         "PRODUCT_GROUP_NAME": "品项名称",
-
         # "BELONG_DEALER_NO": "经销商编码",
         # "BELONG_DEALER_NAME": "经销商名称",
         # "PRODUCT_GROUP_NAME": "品项名称",
@@ -436,8 +443,12 @@ def main_show_results_special(
         # "dealer_suspicious_hotspot_dense_count": "可疑二级热点数量",
     }
 
-    df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(columns=rename_dict)
-    df_model_parameters_dense = df_suspicious_hotspots_parameters_dense.copy().rename(columns=rename_dict)
+    df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(
+        columns=rename_dict
+    )
+    df_model_parameters_dense = df_suspicious_hotspots_parameters_dense.copy().rename(
+        columns=rename_dict
+    )
     df_model_parameters_dense.rename(
         columns={
             "簇半径": "二级分簇半径",
@@ -461,7 +472,11 @@ def main_show_results_special(
     # print(
     #     f"-------------------基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下-------------------"
     # )
-    display_forth_title("-"*30 + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下" + "-"*30)
+    display_forth_title(
+        "-" * 30
+        + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
+        + "-" * 30
+    )
     print()
 
     # print("---一级分簇模型参数---")
@@ -515,17 +530,22 @@ def main_show_results_special(
     # )
     # print(f"当前规则下可疑经销商数量: {len(ids_suspicious_total)}")
     display_fifth_title("经销商数量统计")
-    df_region_dealer_statistics = pd.DataFrame({
-        '扫码经销商总数': df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
-        '经营范围未归档经销商数量': df_total_scanning_locations.loc[df_total_scanning_locations['is_dealer_within_archive'] == 0, :].BELONG_DEALER_NO.nunique(),
-        '当前规则下可疑经销商数量': len(ids_suspicious_total)
-    }, index=[0])
+    df_region_dealer_statistics = pd.DataFrame(
+        {
+            "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
+            "经营范围未归档经销商数量": df_total_scanning_locations.loc[
+                df_total_scanning_locations["is_dealer_within_archive"] == 0, :
+            ].BELONG_DEALER_NO.nunique(),
+            "当前规则下可疑经销商数量": len(ids_suspicious_total),
+        },
+        index=[0],
+    )
     df_region_dealer_statistics_styled = (
         df_region_dealer_statistics.style.set_table_styles(
             [
                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
                 {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]  
+            ]
         ).hide(axis="index")
     )
     display(df_region_dealer_statistics_styled)
@@ -758,7 +778,6 @@ def main_show_region_short_results_special(
         )
     )
     print("*" * 200)
-
 
 
 def main_show_dealer_results(

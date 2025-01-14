@@ -61,21 +61,6 @@ def get_centroids(df_scanning_locations, config_file_path):
             ["LATITUDE", "LONGITUDE"]
         ].mean()
         df_centroids = centroids.reset_index()
-
-        # # 增加一个所有点位的总质心
-        # overall_centroid = df_scanning_locations[['LATITUDE', 'LONGITUDE']].mean()
-
-        # # 创建新的 DataFrame 行，cluster_label 可以用 '-2' 或者其他标识
-        # # cluster_label -2 (int) 在 df_centroids 代表整个dealer 所有点的locationd的总质心
-        # overall_centroid_row = pd.DataFrame({
-        #     'cluster_label': [-2],
-        #     'LATITUDE': [overall_centroid['LATITUDE']],
-        #     'LONGITUDE': [overall_centroid['LONGITUDE']]
-        # })
-
-        # # 将总质心行追加到 df_centroids
-        # df_centroids = pd.concat([overall_centroid_row, df_centroids], ignore_index=True)
-
         df_centroids["formatted_address"] = "-1"
         df_centroids["province"] = "-1"
         df_centroids["city"] = "-1"
@@ -250,6 +235,9 @@ def find_remote_clusters_for_dealers(
     config_file_path,
     dealer_scope_dict_path,
 ):
+    """
+    df_centroids - 
+    """
     with open(dealer_scope_dict_path, "rb") as f:
         dealer_scope_dict = pickle.load(f)
 
@@ -277,10 +265,10 @@ def find_remote_clusters_for_dealers(
     df_scanning_locations_with_remote_labels = verify_points_within_scope(
         df_scanning_locations_with_labels, df_valid_scope_short
     )
-    # 这里可以增加'冗余'信息
+
     df_centroids_with_remote_label["is_dealer_within_archive"] = is_within_archive
     # df_centroids_with_remote_label['product_group_id'] = product_group_id
-    df_centroids_with_remote_label["total_scanning_count_for_dealer"] = len(
+    df_centroids_with_remote_label["dealer_total_scanning_count"] = len(
         df_scanning_locations_with_remote_labels
     )
     df_centroids_with_remote_label["dealer_total_box_count"] = (
@@ -297,59 +285,6 @@ def find_remote_clusters_for_dealers(
         is_within_archive
     )
 
-    # df_scope_start, is_within_archive = find_valid_regions(dealer_id, product_group_id, start_date_str, dealer_scope_dict) # 如果在数据里找不到这条，被记录下来
-    # df_scope_end, is_within_archive = find_valid_regions(dealer_id, product_group_id, end_date_str, dealer_scope_dict)
-
-    # ##########
-    # df_scope_start = df_scope_start[['PROVINCE', 'CITY', 'DISTRICT', 'STREET']]
-    # df_scope_end = df_scope_end[['PROVINCE', 'CITY', 'DISTRICT', 'STREET']]
-    # #########
-
-    # dealer_change_remote_scope = {}
-    # df_centroids_with_remote_label = pd.DataFrame()
-
-    # if df_scope_start.equals(df_scope_end):
-    #     df_centroids_with_remote_label = verify_centroids_within_scope(df_centroids, df_scope_end)
-    #     df_scanning_locations_with_remote_labels = verify_points_within_scope(df_scanning_locations_with_labels, df_scope_end)
-
-    # else:
-    #     business_scope ={
-    #             'start' : df_scope_start,
-    #             'end': df_scope_end
-    #         }
-
-    #     dealer_change_remote_scope[(dealer_id, product_group_id)] = business_scope
-    #     # print(f'经销商：{dealer_id}的经营范围 在{start_date_str} - {end_date_str} 之间发生了变化！')
-
-    #     # 起始时间的有效范围 可能只有一个为空，另一个不为空。这时候取不为空的。
-    #     if df_scope_end.empty and not df_scope_start.empty:
-    #         df_centroids_with_remote_label = verify_centroids_within_scope(df_centroids, df_scope_start)
-    #         df_scanning_locations_with_remote_labels = verify_points_within_scope(df_scanning_locations_with_labels, df_scope_start)
-    #         # print(f'{dealer_id} start_date的有效经营范围为空, end_date不为空, 按照end_date范围计算.')
-
-    #     elif df_scope_start.empty and not df_scope_end.empty:
-    #         df_centroids_with_remote_label = verify_centroids_within_scope(df_centroids, df_scope_end)
-    #         df_scanning_locations_with_remote_labels = verify_points_within_scope(df_scanning_locations_with_labels, df_scope_end)
-    #         # print(f'{dealer_id} end_date的有效经营范围为空, start_date不为空, 按照start_date范围计算.')
-
-    #     else:
-    #         if end_scope:
-    #             df_scanning_locations_with_remote_labels = verify_points_within_scope(df_scanning_locations_with_labels, df_scope_end)
-    #             # print('按照时间区间末端计算')
-    #             df_centroids_with_remote_label = verify_centroids_within_scope(df_centroids, df_scope_end)
-    #         else:
-    #             df_scanning_locations_with_remote_labels = verify_points_within_scope(df_scanning_locations_with_labels, df_scope_start)
-    #             # print('按照时间区间始端计算')
-    #             df_centroids_with_remote_label = verify_centroids_within_scope(df_centroids, df_scope_start)
-
-    # df_remote_cluster = df_centroids_with_remote_label[df_centroids_with_remote_label.is_remote == 1]
-    # print('--------------------------------------------')
-
-    # df_centroids_with_remote_label['overall_centroid_for_dealer_latitude'] = df_centroids.loc[df_centroids['cluster_label'] == -2, 'LATITUDE'].iloc[0]
-    # df_centroids_with_remote_label['overall_centroid_for_dealer_longitude'] = df_centroids.loc[df_centroids['cluster_label'] == -2, 'LONGITUDE'].iloc[0]
-
-    # centroid = (df_centroids_with_remote_label.loc[df_centroids_with_remote_label['cluster_label'] == -2, 'LATITUDE'].iloc[0],\
-    #         df_centroids_with_remote_label.loc[df_centroids_with_remote_label['cluster_label'] == -2, 'LONGITUDE'].iloc[0])
 
     for label in df_centroids_with_remote_label.cluster_label:
 
@@ -397,14 +332,14 @@ def find_remote_clusters_for_dealers(
                 "std_distance_within_cluster",
             ] = round(np.std(distances), 2)
 
-    df_centroids_with_remote_label["ratio_scanning_count"] = (
+    df_centroids_with_remote_label["scanning_ratio_for_cluster"] = (
         df_centroids_with_remote_label["scanning_count_within_cluster"]
-        / df_centroids_with_remote_label["total_scanning_count_for_dealer"]
-    ).round(2)
+        / df_centroids_with_remote_label["dealer_total_scanning_count"]
+    )
     df_centroids_with_remote_label["box_count_ratio_for_cluster"] = (
         df_centroids_with_remote_label["box_count_within_cluster"]
         / df_centroids_with_remote_label["dealer_total_box_count"]
-    ).round(2)
+    )
     df_centroids_with_remote_label = df_centroids_with_remote_label.reset_index(
         drop=True
     )
@@ -429,7 +364,7 @@ def find_hotspots_for_region(
     config_file_path,
     dealer_scope_dict_path,
 ):
-
+    # 增加'dealer_polyline_points_list_total', 'dealer_acodes' -》 df_total_centroids
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     ids_within_region = df_cleaned[
@@ -443,9 +378,8 @@ def find_hotspots_for_region(
     # dealers_change_remote_scope = {}
     dealers_not_within_archive = []
 
-    for i, dealer_id in enumerate(ids_within_region):
-        # print(f'进度: {i}/{len(ids_within_region)}')
-        # df_centroids_with_remote_label, df_scanning_locations_with_remote_labels, dealer_change_remote_scope, is_within_archive = \
+    for dealer_id in ids_within_region:
+
         (
             df_centroids_with_remote_label,
             df_scanning_locations_with_remote_labels,
@@ -483,9 +417,6 @@ def find_hotspots_for_region(
         if not df_scanning_locations_with_remote_labels.empty:
             scanning_locations_list.append(df_scanning_locations_with_remote_labels)
 
-        # if dealer_change_remote_scope:
-        #     dealers_change_remote_scope.update(dealer_change_remote_scope)
-
         if not is_within_archive:
             dealers_not_within_archive.append((dealer_id, product_group_id))
 
@@ -504,22 +435,8 @@ def find_hotspots_for_region(
         df_total_scanning_locations = pd.DataFrame()  # 创建一个空的 DataFrame
         print(f"发生错误: {e}")
 
-    # df_hotspots = df_total_centroids.loc[~(df_total_centroids['cluster_label'].isin([-2, -1])), :]
-    # df_local_hotpots_within_archive = df_hotspots.loc[
-    #     ((df_hotspots['is_dealer_within_archive'] == 1) & (df_hotspots['is_remote'] == 0)), :
-    #         ]
-
-    # average_dis_to_overall_centroid_among_all_local_centroids = np.mean(df_local_hotpots_within_archive.dis_to_overall_centroid)
-    # average_avg_distance_within_cluster_among_all_local_centroids = np.mean(df_local_hotpots_within_archive.avg_distance_within_cluster)
-    # average_std_distance_within_cluster_among_all_local_centroids = np.mean(df_local_hotpots_within_archive.std_distance_within_cluster)
-
-    # df_total_centroids['ratio_dis_to_overall_centroid'] = (df_total_centroids['dis_to_overall_centroid'] / average_dis_to_overall_centroid_among_all_local_centroids).round(2)
-    # df_total_centroids['ratio_avg_distance_within_cluster'] = (df_total_centroids['avg_distance_within_cluster'] / average_avg_distance_within_cluster_among_all_local_centroids).round(2)
-    # df_total_centroids['ratio_std_distance_within_cluster'] = (df_total_centroids['std_distance_within_cluster'] / average_std_distance_within_cluster_among_all_local_centroids).round(2)
-    # df_total_centroids['ratio_scanning_count'] = (df_total_centroids['scanning_count_within_cluster'] / df_total_centroids['total_scanning_count_for_dealer']).round(2)
-
-    # return df_total_centroids, df_total_scanning_locations, dealers_change_remote_scope, dealers_not_within_archive
     return df_total_centroids, df_total_scanning_locations, dealers_not_within_archive
+
 
 
 def calculate_distances_to_local_centroids_for_centroids(
@@ -648,9 +565,6 @@ def find_closest_point_geodesic(fixed_point, coordinates):
 
 def calculate_min_distance_to_border(df_total_centroids):
 
-    # with open(dealer_scope_dict_path, 'rb') as f:
-    #     dealer_scope_dict = pickle.load(f)
-
     df_total_hotspots = df_total_centroids.loc[
         (~(df_total_centroids["cluster_label"].isin([-1, -2])))
         & (df_total_centroids["is_dealer_within_archive"] == 1),
@@ -659,49 +573,10 @@ def calculate_min_distance_to_border(df_total_centroids):
     # df_total_hotspots['dis_border'] = float('inf')
 
     for i in range(len(df_total_hotspots)):
-        # dealer_id = df_total_hotspots.loc[i, 'dealer_id']
-
-        # df_valid_scope, _ = find_valid_regions(dealer_id, product_group_id, start_date_str, dealer_scope_dict)
-
-        # if df_valid_scope.empty:
-        #     df_valid_scope_end, _ = find_valid_regions(dealer_id, product_group_id, end_date_str, dealer_scope_dict)
-
-        #     if df_valid_scope_end.empty:
-        #         df_total_hotspots.loc[i, 'dis_border'] = float(('inf'))
-        #         # print(f'{dealer_id} 有效经营范围为空')
-        #         continue
-        #     else:
-        #         df_valid_scope = df_valid_scope_end
-
-        # # acodes = list(df_valid_scope['AREA_CODE']) # 有一部分公司的area_Code 与高德api的acode 不一致！！！！
-        # # 添加当前（月初或月末）有效经营范围的区域划分线
-
-        # df_valid_scope = df_valid_scope.reset_index(drop=True)
-        # df_valid_scope = df_total_hotspots.loc[i, 'dealer_valid_scope']
 
         polyline_points_list_total = df_total_hotspots.loc[
             i, "dealer_polyline_points_list_total"
         ]
-        # acodes = df_total_hotspots.loc[i, 'dealer_acodes']
-        # acodes = []
-        # for j in range(len(df_valid_scope)):
-        #     address = df_valid_scope.loc[j, ['PROVINCE', 'CITY', 'DISTRICT', 'STREET']].tolist()
-        #     area_name=''
-        #     for item in address:
-        #         if item != '-1':
-        #             area_name += item
-        #         else:
-        #             break
-        #     acode = get_acode(config_file_path, area_name, sleep=0.1)['geocodes'][0]['adcode']
-        #     acodes.append(acode)
-
-        # polyline_points_list_total = []
-        # if acodes:
-        #     for acode in acodes:
-        #         polyline_points_list = get_polyline_points(config_file_path, acode, sleep=0.1)
-        #         for x in polyline_points_list:
-        #             polyline_points_list_total.append(x)
-
         fixed_point = (
             df_total_hotspots.loc[i, "LATITUDE"],
             df_total_hotspots.loc[i, "LONGITUDE"],
@@ -781,6 +656,9 @@ def main_find_hotspots_continue_for_dense(
     config_file_path,
     dealer_scope_dict_path,
 ):
+    """
+    增加 df_total_centroids_sparse 
+    """
 
     large_hotspots_mask = (
         ~(df_total_centroids_sparse["cluster_label"].isin([-1, -2]))
@@ -788,6 +666,9 @@ def main_find_hotspots_continue_for_dense(
         df_total_centroids_sparse["scanning_count_within_cluster"]
         >= large_hotspots_threshold
     )
+
+    df_total_centroids_sparse.loc[large_hotspots_mask, 'is_large_hotspot'] = 1
+    df_total_centroids_sparse.loc[~large_hotspots_mask, 'is_large_hotspot'] = 0
 
     df_large_hotspots = df_total_centroids_sparse.loc[large_hotspots_mask, :]
     df_large_hotspots_label = df_large_hotspots.loc[:, ["dealer_id", "cluster_label"]]
@@ -833,12 +714,14 @@ def main_find_hotspots_continue_for_dense(
     )
     df_total_centroids_dense = df_total_centroids_dense.drop(
         columns=[
-            "total_scanning_count_for_dealer",
+            "dealer_total_scanning_count",
+            "scanning_ratio_for_cluster",
+            'dealer_total_box_count',
             "box_count_ratio_for_cluster",
-            "ratio_scanning_count",
         ]
     )
 
+    # 在dense 分簇里计算距本地扫码点坐标也要根据sparse里的所有点
     # dis_to_all_local_points_centroid, centroid_all_local_points_coordinate
     df_all_local_points_location = df_total_centroids_sparse.loc[
         :, ["dealer_id", "centroid_all_local_points_coordinate"]
@@ -906,22 +789,28 @@ def main_find_hotspots_continue_for_dense(
         df_total_centroids_dense["dis_to_all_local_hotspots_centroid"], 2
     )
 
-    # ratio_scanning_count ,'total_scanning_count_for_dealer'
+    # "scanning_ratio_for_cluster" ,"dealer_total_scanning_count", 
+    # "box_count_ratio_for_cluster", "dealer_total_box_count"
     df_total_centroids_dense = pd.merge(
         df_total_centroids_dense,
         df_total_centroids_sparse[
-            ["dealer_id", "total_scanning_count_for_dealer"]
+            ["dealer_id", "dealer_total_scanning_count", "dealer_total_box_count"]
         ].drop_duplicates(),
         on="dealer_id",
         how="left",
     )
-    df_total_centroids_dense["ratio_scanning_count"] = (
+    df_total_centroids_dense["scanning_ratio_for_cluster"] = (
         df_total_centroids_dense["scanning_count_within_cluster"]
-        / df_total_centroids_dense["total_scanning_count_for_dealer"]
-    ).round(2)
-    # print(df_total_centroids_dense.shape)
+        / df_total_centroids_dense["dealer_total_scanning_count"]
+    )
+    df_total_centroids_dense["box_count_ratio_for_cluster"] = (
+        df_total_centroids_dense["box_count_within_cluster"]
+        / df_total_centroids_dense["dealer_total_box_count"]
+    )
+
+    # print(df_total_centroids_dense.columns)
     df_total_centroids_dense = calculate_min_distance_to_border(
         df_total_centroids_dense
     )
 
-    return df_total_centroids_dense, df_total_scanning_locations_dense
+    return df_total_centroids_dense, df_total_scanning_locations_dense, df_total_centroids_sparse

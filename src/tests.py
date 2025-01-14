@@ -1,8 +1,6 @@
 from .data_clean import main_generate_clean_region_data
 from .find_hotspots import (
     main_find_hotspots,
-    find_valid_regions,
-    plot_clusters_with_folium,
 )
 from IPython.display import display
 from tabulate import tabulate

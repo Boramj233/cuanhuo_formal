@@ -166,9 +166,9 @@ def get_month_start_end(year_month_str):
 
 def save_model_results(
     df_dealer_results,
+    df_total_scanning_locations,
     df_total_centroids,
     df_suspicious_hotspots_parameters,
-    df_total_scanning_locations,
     year_month_str,
     dealer_region_name,
     product_group_id,
@@ -240,7 +240,47 @@ def load_from_raw_outputs(
     )
 
 
-# 这里可以多返回一个 df_dealer_result
+def read_outputs(output_files_path, dense_model=False):
+    file_names = []
+
+    if dense_model:
+        file_names = [
+            "df_dealer_results_dense.pkl",
+            "df_total_centroids_dense.pkl",
+            "df_total_scanning_locations_dense.parquet",
+            "df_suspicious_hotspots_parameters_dense.parquet",
+        ]
+
+    else:
+        file_names = [
+            "df_dealer_results.pkl",
+            "df_total_centroids.pkl",
+            "df_total_scanning_locations.parquet",
+            "df_suspicious_hotspots_parameters.parquet",
+        ]
+
+    df_dealer_results_path = os.path.join(output_files_path, file_names[0])
+    df_total_centroids_path = os.path.join(output_files_path, file_names[1])
+    df_total_scanning_locations_path = os.path.join(
+        output_files_path, file_names[2]
+    )
+    df_suspicious_hotspots_parameters_path = os.path.join(
+        output_files_path, file_names[3]
+    )
+
+    (
+        df_dealer_results,
+        df_total_centroids,
+        df_total_scanning_locations,
+        df_suspicious_hotspots_parameters,
+    ) = load_from_raw_outputs(
+        df_dealer_results_path,
+        df_total_centroids_path,
+        df_total_scanning_locations_path,
+        df_suspicious_hotspots_parameters_path,
+    )
+
+    return  df_dealer_results, df_total_centroids, df_total_scanning_locations, df_suspicious_hotspots_parameters
 
 
 def extract_paths(workspace_folder_path, year_month_str):

@@ -1,13 +1,5 @@
-from IPython.display import display
+from IPython.display import display, Markdown
 from tabulate import tabulate
-
-from .libs import (
-    get_polyline_points,
-    get_acode,
-    find_valid_regions,
-    find_valid_regions_monthly_application,
-)
-from IPython.display import display, HTML, Markdown
 
 import folium
 import geopandas as gpd
@@ -150,26 +142,6 @@ def main_show_results(
         "PRODUCT_GROUP_NAME",
     ]
 
-    # "簇半径": radius,
-    # "簇内最少样本数": min_samples,
-    # "距本地热点总质心的距离阈值": dis_hotspots_c_t,
-    # "距本地扫码点总质心的距离阈值": dis_points_c_t,
-    # "距边界最小距离阈值": dis_border_t,
-    # "热点扫码量占比阈值": ratio_scanning_t,
-    # "热点扫码量阈值": scanning_count_t,
-    # "簇内离散度阈值": round(std_distance_within_cluster_threshold, 2),
-    # "紧密热点的箱数阈值": box_count_t,
-
-    # "radius": radius,
-    # "min_samples": min_samples,
-    # "dis_hotspots_c_t": dis_hotspots_c_t,
-    # "dis_points_c_t": dis_points_c_t,
-    # "dis_border_t": dis_border_t,
-    # "ratio_scanning_t": ratio_scanning_t,
-    # "scanning_count_t": scanning_count_t,
-    # "std_distance_t": round(std_distance_within_cluster_threshold, 2),
-    # "box_count_t": box_count_t,
-
     rename_dict = {
         "radius": "簇半径",
         "min_samples": "簇内最少样本数",
@@ -183,56 +155,6 @@ def main_show_results(
         "BELONG_DEALER_NO": "经销商编码",
         "BELONG_DEALER_NAME": "经销商名称",
         "PRODUCT_GROUP_NAME": "品项名称",
-        # "remote_ratio": "开瓶异地率",
-        # "total_scanning_count": "扫码总量",
-        # "remote_scanning_count": "异地扫码量",
-        # "remote_hotspot_ratio": "热点异地率",
-        # "dealer_hotspot_count": "热点总量",
-        # "dealer_remote_hotspot_count": "异地热点数量",
-        # "dealer_suspicious_hotspot_count": "可疑热点数量",
-        # "suspicious_hotspot_ratio": "热点可疑率",
-        # "dealer_total_box_count": "总开箱数",
-        # "cluster_label": "簇标签",
-        # "province": "省",
-        # "city": "市",
-        # "district": "区",
-        # "street": "镇街",
-        # "scanning_count_within_cluster": "簇内点数量",
-        # "is_remote": "是否异地",
-        # "is_suspicious": "是否可疑",
-        # "ratio_scanning_count": "扫码量占比",
-        # "dis_to_overall_centroid": "热点质心到总质心的距离（质心距离）",
-        # "dis_to_all_local_hotspots_centroid": "距本地热点总质心",
-        # "dis_to_all_local_points_centroid": "距本地点总质心",
-        # "std_distance_within_cluster": "簇内离散度",
-        # "dis_border": "距范围边界",
-        # "avg_distance_within_cluster": "热点内各点到该热点质心距离的平均值（热点内距离均值）",
-        # "OPEN_PROVINCE": "开瓶省",
-        # "OPEN_CITY": "开瓶市",
-        # "count": "数量",
-        # "is_remote_city": "是否为异地二级城市",
-        # "box_count_within_cluster": "箱数",
-        # "box_count_ratio_for_cluster": "箱数占比",
-        # "BELONG_DEALER_NO": "经销商编码",
-        # "BELONG_DEALER_NAME": "经销商名称",
-        # "PRODUCT_GROUP_NAME": "品项名称",
-        # "EFFECTIVE_DATE": "生效日期",
-        # "INACTIVE_DATE": "失效日期",
-        # "DEALER_CODE": "经销商编码",
-        # "PRODUCT_GROUP_CODE": "品项编码",
-        # "AREA_NAME": "经营区域",
-        # "PROVINCE": "省",
-        # "CITY": "市",
-        # "DISTRICT": "区县",
-        # "STREET": "镇街",
-        # "dealer_hotspot_sparse_count": "一级热点数量",
-        # "dealer_remote_hotspot_sparse_count": "异地一级热点数量",
-        # "remote_hotspot_sparse_ratio": "一级热点异地率",
-        # "dealer_suspicious_hotspot_sparse_count": "可疑一级热点数量",
-        # "suspicious_hotspot_sparse_ratio": "一级热点可疑率",
-        # "dealer_hotspot_dense_count": "二级热点数量",
-        # "dealer_remote_hotspot_dense_count": "异地二级热点数量",
-        # "dealer_suspicious_hotspot_dense_count": "可疑二级热点数量",
     }
 
     df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(
@@ -246,13 +168,10 @@ def main_show_results(
     ).reset_index(drop=True)
     product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
 
-    # print(
-    #     f"-------------------基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下-------------------"
-    # )
     display_forth_title(
-        "-" * 30
+        "-" * 35
         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
-        + "-" * 30
+        + "-" * 35
     )
     print()
 
@@ -388,59 +307,7 @@ def main_show_results_special(
         "BELONG_DEALER_NO": "经销商编码",
         "BELONG_DEALER_NAME": "经销商名称",
         "PRODUCT_GROUP_NAME": "品项名称",
-        # "BELONG_DEALER_NO": "经销商编码",
-        # "BELONG_DEALER_NAME": "经销商名称",
-        # "PRODUCT_GROUP_NAME": "品项名称",
-        # "remote_ratio": "开瓶异地率",
-        # "total_scanning_count": "扫码总量",
-        # "remote_scanning_count": "异地扫码量",
-        # "remote_hotspot_ratio": "热点异地率",
-        # "dealer_hotspot_count": "热点总量",
-        # "dealer_remote_hotspot_count": "异地热点数量",
-        # "suspicious_hotspot_ratio": "热点可疑率",
-        # "dealer_suspicious_hotspot_count": "可疑热点数量",
-        # "cluster_label": "簇标签",
-        # "province": "省",
-        # "city": "市",
-        # "district": "区",
-        # "street": "镇街",
-        # "scanning_count_within_cluster": "簇内点数量",
-        # "is_remote": "是否异地",
-        # "is_suspicious": "是否可疑",
-        # "ratio_scanning_count": "扫码量占比",
-        # "dis_to_overall_centroid": "热点质心到总质心的距离（质心距离）",
-        # "dis_to_all_local_hotspots_centroid": "距本地热点总质心",
-        # "dis_to_all_local_points_centroid": "距本地点总质心",
-        # "dis_border": "距范围边界",
-        # "avg_distance_within_cluster": "热点内各点到该热点质心距离的平均值（热点内距离均值）",
-        # "std_distance_within_cluster": "簇内离散度",
-        # "OPEN_PROVINCE": "开瓶省",
-        # "OPEN_CITY": "开瓶市",
-        # "count": "数量",
-        # "is_remote_city": "是否为异地二级城市",
-        # "dealer_total_box_count": "总开箱数",
-        # "box_count_within_cluster": "箱数",
-        # "box_count_ratio_for_cluster": "箱数占比",
-        # "BELONG_DEALER_NO": "经销商编码",
-        # "BELONG_DEALER_NAME": "经销商名称",
-        # "PRODUCT_GROUP_NAME": "品项名称",
-        # "EFFECTIVE_DATE": "生效日期",
-        # "INACTIVE_DATE": "失效日期",
-        # "DEALER_CODE": "经销商编码",
-        # "PRODUCT_GROUP_CODE": "品项编码",
-        # "AREA_NAME": "经营区域",
-        # "PROVINCE": "省",
-        # "CITY": "市",
-        # "DISTRICT": "区县",
-        # "STREET": "镇街",
-        # "dealer_hotspot_sparse_count": "一级热点数量",
-        # "dealer_remote_hotspot_sparse_count": "异地一级热点数量",
-        # "remote_hotspot_sparse_ratio": "一级热点异地率",
-        # "dealer_suspicious_hotspot_sparse_count": "可疑一级热点数量",
-        # "suspicious_hotspot_sparse_ratio": "一级热点可疑率",
-        # "dealer_hotspot_dense_count": "二级热点数量",
-        # "dealer_remote_hotspot_dense_count": "异地二级热点数量",
-        # "dealer_suspicious_hotspot_dense_count": "可疑二级热点数量",
+
     }
 
     df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(
@@ -486,7 +353,7 @@ def main_show_results_special(
         df_model_parameters.style.format(
             {
                 "热点扫码量占比阈值": "{:.1f}",  # 浮动数值保留一位小数
-                "簇内离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
+                "热点离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
             }
         )
         .set_table_styles(
@@ -506,8 +373,8 @@ def main_show_results_special(
     df_model_parameters_dense_styled = (
         df_model_parameters_dense.style.format(
             {
-                "该热点扫码量占比阈值": "{:.1f}",  # 浮动数值保留一位小数
-                "簇内离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
+                "热点扫码量占比阈值": "{:.1f}",  # 浮动数值保留一位小数
+                "热点离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
             }
         )
         .set_table_styles(
@@ -583,10 +450,8 @@ def main_show_results_special(
     )
     display(df_suspicious_dealers_to_show_total_styled)
     print("*" * 150)
+    print()
 
-    print()
-    print()
-    print()
     print("可疑经销商详细信息如下:")
     print("=" * 100)
     print()
@@ -635,149 +500,357 @@ def main_show_region_short_results(
 
     df_suspicious_dealers = df_dealer_results.loc[
         df_dealer_results["is_dealer_suspicious"] == 1, :
-    ]
+    ].sort_values(by="BELONG_DEALER_NO").reset_index(drop=True)
     product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
-    print(
-        f"-------------------基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下-------------------"
-    )
 
-    print(f"扫码经销商总数： {df_total_scanning_locations.BELONG_DEALER_NO.nunique()}")
-    print(
-        f"经营范围未归档经销商总数： {df_total_scanning_locations.loc[df_total_scanning_locations['is_dealer_within_archive'] == 0, :].BELONG_DEALER_NO.nunique()}"
+    display_forth_title(
+        "-" * 30
+        + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果（简略）如下"
+        + "-" * 30
     )
-    print(f"当前规则下可疑经销商数量: {df_suspicious_dealers.shape[0]}")
     print()
 
+    display_fifth_title("经销商数量统计")
+    df_region_dealer_statistics = pd.DataFrame(
+        {
+            "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
+            "经营范围未归档经销商数量": df_total_scanning_locations.loc[
+                df_total_scanning_locations["is_dealer_within_archive"] == 0, :
+            ].BELONG_DEALER_NO.nunique(),
+            "当前规则下可疑经销商数量": df_suspicious_dealers.shape[0],
+        },
+        index=[0],
+    )
+    df_region_dealer_statistics_styled = (
+        df_region_dealer_statistics.style.set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
+                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
+            ]
+        ).hide(axis="index")
+    )
+    display(df_region_dealer_statistics_styled)
+    print()
+
+    display_fifth_title("可疑经销商汇总表")
     suspicious_dealers_overall_cols = [
         "BELONG_DEALER_NO",
         "BELONG_DEALER_NAME",
         "PRODUCT_GROUP_NAME",
+        'dealer_suspicious_points_count',
+        'dealer_suspicious_hotspot_count',
+        'dealer_suspicious_points_ratio',
+        "dealer_remote_ratio",
+        "dealer_total_scanning_count",
     ]
     rename_dict = {
         "BELONG_DEALER_NO": "经销商编码",
         "BELONG_DEALER_NAME": "经销商名称",
         "PRODUCT_GROUP_NAME": "品项名称",
+        "dealer_suspicious_points_count": "可疑扫码数量",
+        "dealer_suspicious_hotspot_count": "可疑扫码热点数量",
+        "dealer_suspicious_points_ratio": "扫码可疑率",
+        "dealer_remote_ratio": "扫码异地率",
+        "dealer_total_scanning_count": "总扫码量",
     }
-    print("---可疑经销商汇总表---")
     df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
         :, suspicious_dealers_overall_cols
     ]
     df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.rename(
         columns=rename_dict
     )
-    print(
-        tabulate(
-            df_suspicious_dealers_to_show,
-            headers="keys",
-            tablefmt="pretty",
-            showindex=False,
+    # print(tabulate(df_suspicious_dealers_to_show , headers='keys', tablefmt='pretty', showindex=False))
+    # import pandas as pd
+    # import openpyxl
+
+    # # 创建 Excel 写入对象，使用 openpyxl 引擎
+    # with pd.ExcelWriter('suspicious_dealers_report.xlsx', engine='openpyxl') as writer:
+    #     df_suspicious_dealers_to_show.to_excel(writer, index=False, sheet_name='Suspicious Dealers')
+
+    #     # 获取写入的 Excel 文件的工作表对象
+    #     workbook = writer.book
+    #     worksheet = workbook['Suspicious Dealers']
+        
+    #     # 对工作表中的某些单元格应用样式
+    #     for col in worksheet.columns:
+    #         for cell in col:
+    #             cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+
+    # df_suspicious_dealers_to_show.to_excel(
+    #     'suspicious_dealers_report.xlsx',  # 文件路径和名称
+    #     index=False,  # 不输出行索引
+    #     sheet_name='Suspicious Dealers'  # 工作表名称
+    # )
+    df_suspicious_dealers_to_show_styled = (
+        df_suspicious_dealers_to_show.style
+        .set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},  # Header centered
+                {"selector": "td", "props": [("text-align", "center")]},  # Data centered
+            ]
+        )
+        .hide(axis="index")
+        .format(
+            {
+                '扫码可疑率': '{:.2f}',  # Two decimal places
+                '扫码异地率': '{:.2f}'  # Two decimal places
+            }
         )
     )
-    print("*" * 200)
+
+    # df_suspicious_dealers_to_show_styled = (
+    #     df_suspicious_dealers_to_show.style.set_table_styles(
+    #         [
+    #             {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
+    #             {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
+    #         ]
+    #     ).hide(axis="index")
+    #     .format(
+    #         {
+    #             '扫码可疑率': '{:.2f}',  # 保留两位小数
+    #             '扫码异地率': '{:.2f}'  # 保留两位小数
+    #         }
+
+    #     )
+    # )
+    display(df_suspicious_dealers_to_show_styled)
     print()
 
-    print("---经营范围未归档经销商---")
+
+    display_fifth_title("经营范围未归档经销商")
+    unarchive_dealers_overall_cols = [
+        "BELONG_DEALER_NO",
+        "BELONG_DEALER_NAME",
+        "PRODUCT_GROUP_NAME"]
     df_unarchive_dealers_to_show = df_total_scanning_locations.loc[
         df_total_scanning_locations["is_dealer_within_archive"] == 0,
-        suspicious_dealers_overall_cols,
-    ].drop_duplicates(ignore_index=True)
+        unarchive_dealers_overall_cols,
+    ].drop_duplicates()
+    df_unarchive_dealers_to_show = df_unarchive_dealers_to_show.sort_values(by='BELONG_DEALER_NO').reset_index(drop=True)
     df_unarchive_dealers_to_show = df_unarchive_dealers_to_show.rename(
         columns=rename_dict
     )
-    print(
-        tabulate(
-            df_unarchive_dealers_to_show,
-            headers="keys",
-            tablefmt="pretty",
-            showindex=False,
-        )
+    df_unarchive_dealers_to_show_styled = (
+        df_unarchive_dealers_to_show.style.set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
+                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
+            ]
+        ).hide(axis="index")
     )
-    print("*" * 200)
+    display(df_unarchive_dealers_to_show_styled)
+    print()
+    print("*" * 100)
 
 
-def main_show_region_short_results_special(
-    df_dealer_results,
-    df_total_scanning_locations,
-    df_dealer_results_dense,
-    start_date_str,
-    end_date_str,
-    dealer_region_name,
-):
+
+def main_show_region_short_results_special(df_dealer_results,df_total_scanning_locations, df_dealer_results_dense, start_date_str,end_date_str,dealer_region_name):
 
     df_suspicious_dealers = df_dealer_results.loc[
         df_dealer_results["is_dealer_suspicious"] == 1, :
-    ]
+    ].sort_values(by="BELONG_DEALER_NO").reset_index(drop=True)
+
     df_suspicious_dealers_dense = df_dealer_results_dense.loc[
         df_dealer_results_dense["is_dealer_suspicious"] == 1, :
-    ]
+    ].sort_values(by="BELONG_DEALER_NO").reset_index(drop=True)
+
     ids_suspicious_total = set(df_suspicious_dealers.BELONG_DEALER_NO) | set(
         df_suspicious_dealers_dense.BELONG_DEALER_NO
     )
 
     product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
 
-    print(
-        f"-------------------基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下-------------------"
+    display_forth_title(
+        "-" * 30
+        + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果（简略）如下"
+        + "-" * 30
     )
     print()
 
-    print(f"扫码经销商总数： {df_total_scanning_locations.BELONG_DEALER_NO.nunique()}")
-    print(
-        f"经营范围未归档经销商总数： {df_total_scanning_locations.loc[df_total_scanning_locations['is_dealer_within_archive'] == 0, :].BELONG_DEALER_NO.nunique()}"
+    display_fifth_title("经销商数量统计")
+    df_region_dealer_statistics = pd.DataFrame(
+        {
+            "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
+            "经营范围未归档经销商数量": df_total_scanning_locations.loc[
+                df_total_scanning_locations["is_dealer_within_archive"] == 0, :
+            ].BELONG_DEALER_NO.nunique(),
+            "当前规则下可疑经销商数量": len(ids_suspicious_total),
+        },
+        index=[0],
     )
-    print(f"当前规则下可疑经销商数量: {len(ids_suspicious_total)}")
+    df_region_dealer_statistics_styled = (
+        df_region_dealer_statistics.style.set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
+                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
+            ]
+        ).hide(axis="index")
+    )
+    display(df_region_dealer_statistics_styled)
     print()
 
+    display_fifth_title("可疑经销商汇总表")
     suspicious_dealers_overall_cols = [
         "BELONG_DEALER_NO",
         "BELONG_DEALER_NAME",
         "PRODUCT_GROUP_NAME",
+        'dealer_suspicious_points_count_final',
+        'dealer_suspicious_hotspot_count_final',
+        'dealer_suspicious_points_ratio_final',
+        "dealer_remote_ratio",
+        "dealer_total_scanning_count",
     ]
+
     rename_dict = {
         "BELONG_DEALER_NO": "经销商编码",
         "BELONG_DEALER_NAME": "经销商名称",
         "PRODUCT_GROUP_NAME": "品项名称",
+        "dealer_suspicious_points_count_final": "可疑扫码数量（总）",
+        "dealer_suspicious_hotspot_count_final": "可疑扫码热点数量（总）",
+        "dealer_suspicious_points_ratio_final": "扫码可疑率（总）",
+        "dealer_remote_ratio": "扫码异地率",
+        "dealer_total_scanning_count": "总扫码量",
     }
-    print("---可疑经销商汇总表---")
-    df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
-        :, suspicious_dealers_overall_cols
-    ]
-    df_suspicious_dealers_to_show_dense = df_suspicious_dealers_dense.loc[
-        :, suspicious_dealers_overall_cols
-    ]
-    df_suspicious_dealers_to_show_total = pd.concat(
-        [df_suspicious_dealers_to_show, df_suspicious_dealers_to_show_dense], axis=0
-    ).drop_duplicates(ignore_index=True)
-    df_suspicious_dealers_to_show_total = df_suspicious_dealers_to_show_total.rename(
+
+    # suspicious_dealers_overall_cols_1 = [
+    #     "BELONG_DEALER_NO",
+    #     "BELONG_DEALER_NAME",
+    #     "PRODUCT_GROUP_NAME",
+    #     "dealer_remote_ratio",
+    #     "dealer_total_scanning_count",
+    # ]
+    df_suspicious_dealers_to_show = df_suspicious_dealers.loc[df_suspicious_dealers.BELONG_DEALER_NO.isin(ids_suspicious_total),
+                                                              suspicious_dealers_overall_cols]
+    
+    # df_total_scanning_locations_to_merge = df_total_scanning_locations.loc[:, ['BARCODE_BOTTLE', 
+    #                                                                            'BELONG_DEALER_NO', 
+    #                                                                            'is_within_suspicious_hotspots']]
+    # # 'dealer_suspicious_points_count'
+    # df_total_scanning_locations_dense_to_merge =\
+    #     df_total_scanning_locations_dense.loc[:, ['BARCODE_BOTTLE', 'is_within_suspicious_hotspots']]
+    # df_total_scanning_locations_merged = pd.merge(df_total_scanning_locations_to_merge, df_total_scanning_locations_dense_to_merge,
+    #                                               how='left', on='BARCODE_BOTTLE')
+    
+    # df_total_scanning_locations_merged['is_within_suspicious_hotspots_y'] =\
+    #     df_total_scanning_locations_merged['is_within_suspicious_hotspots_y'].fillna(0)
+    
+    # df_total_scanning_locations_merged['is_final_within_suspicious_hotspots'] = (
+    #     (df_total_scanning_locations_merged['is_within_suspicious_hotspots_x'] == 1) | 
+    #     (df_total_scanning_locations_merged['is_within_suspicious_hotspots_y'] == 1)
+    # ).astype(int)
+    # df_dealer_suspicious_points_final = \
+    #     df_total_scanning_locations_merged.groupby(by='BELONG_DEALER_NO')['is_final_within_suspicious_hotspots'].sum()\
+    #     .reset_index(name='dealer_suspicious_points_count')
+    # dealer_suspicious_points_final = df_dealer_suspicious_points_final.set_index('BELONG_DEALER_NO')['dealer_suspicious_points_count'].to_dict()
+    # df_suspicious_dealers_to_show['dealer_suspicious_points_count'] = df_suspicious_dealers_to_show['BELONG_DEALER_NO'].map(dealer_suspicious_points_final)
+    # # 'dealer_suspicious_hotspot_count'
+    # df_suspicious_dealers_merged = pd.merge(
+    #     df_suspicious_dealers[["BELONG_DEALER_NO", 'dealer_suspicious_hotspot_count']], 
+    #     df_suspicious_dealers_dense[["BELONG_DEALER_NO", 'dealer_suspicious_hotspot_count']],
+    #     how='left', on='BELONG_DEALER_NO'
+    # )
+    # df_suspicious_dealers_merged['dealer_suspicious_hotspot_count_y'] = \
+    #     df_suspicious_dealers_merged['dealer_suspicious_hotspot_count_y'].fillna(0)
+    # df_suspicious_dealers_merged['dealer_suspicious_hotspot_count_total'] = \
+    #     df_suspicious_dealers_merged['dealer_suspicious_hotspot_count_x'] + df_suspicious_dealers_merged['dealer_suspicious_hotspot_count_y']
+    # dealer_suspicious_hotspot_count_final = \
+    #     df_suspicious_dealers_merged.set_index('BELONG_DEALER_NO')['dealer_suspicious_hotspot_count_total'].to_dict()
+    # df_suspicious_dealers_to_show['dealer_suspicious_hotspot_count'] = df_suspicious_dealers_to_show['BELONG_DEALER_NO'].map(dealer_suspicious_hotspot_count_final)
+    # # 'dealer_suspicious_points_ratio'
+    # df_suspicious_dealers_to_show['dealer_suspicious_points_ratio'] = \
+    #     round((df_suspicious_dealers_to_show['dealer_suspicious_points_count'] / df_suspicious_dealers_to_show['dealer_total_scanning_count']), 2)
+    
+    # # 新的列顺序
+    # new_column_order = [
+    #     "BELONG_DEALER_NO",
+    #     "BELONG_DEALER_NAME",
+    #     "PRODUCT_GROUP_NAME",
+    #     'dealer_suspicious_points_count',
+    #     'dealer_suspicious_hotspot_count',
+    #     'dealer_suspicious_points_ratio',
+    #     "dealer_remote_ratio",
+    #     "dealer_total_scanning_count"
+    # ]
+
+    # # 调整列顺序
+    # df_suspicious_dealers_to_show = df_suspicious_dealers_to_show[new_column_order]
+    # rename_dict = {
+    #     "BELONG_DEALER_NO": "经销商编码",
+    #     "BELONG_DEALER_NAME": "经销商名称",
+    #     "PRODUCT_GROUP_NAME": "品项名称",
+    #     "dealer_suspicious_points_count": "可疑扫码数量",
+    #     "dealer_suspicious_hotspot_count": "可疑扫码热点数量",
+    #     "dealer_suspicious_points_ratio": "扫码可疑率",
+    #     "dealer_remote_ratio": "扫码异地率",
+    #     "dealer_total_scanning_count": "总扫码量",
+    # }
+
+    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.sort_values(by='BELONG_DEALER_NO').reset_index(drop=True).rename(
         columns=rename_dict
     )
-    print(
-        tabulate(
-            df_suspicious_dealers_to_show_total,
-            headers="keys",
-            tablefmt="pretty",
-            showindex=False,
+    # df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
+    #     :, suspicious_dealers_overall_cols
+    # ]
+    # df_suspicious_dealers_to_show_dense = df_suspicious_dealers_dense.loc[
+    #     :, suspicious_dealers_overall_cols
+    # ]
+    # df_suspicious_dealers_to_show_total = pd.concat(
+    #     [df_suspicious_dealers_to_show, df_suspicious_dealers_to_show_dense], axis=0
+    # ).drop_duplicates(ignore_index=True)
+    # df_suspicious_dealers_to_show_total = (
+    #     df_suspicious_dealers_to_show_total.sort_values(
+    #         by="BELONG_DEALER_NO", ignore_index=True
+    #     )
+    # )
+    # ids_suspicious_total = list(df_suspicious_dealers_to_show_total.BELONG_DEALER_NO)
+    # df_suspicious_dealers_to_show_total = df_suspicious_dealers_to_show_total.rename(
+    #     columns=rename_dict
+    # )
+    # print(tabulate(df_suspicious_dealers_to_show_total, headers='keys', tablefmt='pretty', showindex=False))
+
+    df_suspicious_dealers_to_show_styled = (
+        df_suspicious_dealers_to_show.style
+        .set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},  # Header centered
+                {"selector": "td", "props": [("text-align", "center")]},  # Data centered
+            ]
+        )
+        .hide(axis="index")
+        .format(
+            {
+                '扫码可疑率（总）': '{:.2f}',  # Two decimal places
+                '扫码异地率': '{:.2f}'  # Two decimal places
+            }
         )
     )
+    display(df_suspicious_dealers_to_show_styled)
     print()
 
-    print("---经营范围未归档经销商---")
+    display_fifth_title("经营范围未归档经销商")
+    unarchive_dealers_overall_cols = [
+        "BELONG_DEALER_NO",
+        "BELONG_DEALER_NAME",
+        "PRODUCT_GROUP_NAME"]
     df_unarchive_dealers_to_show = df_total_scanning_locations.loc[
         df_total_scanning_locations["is_dealer_within_archive"] == 0,
-        suspicious_dealers_overall_cols,
-    ].drop_duplicates(ignore_index=True)
+        unarchive_dealers_overall_cols,
+    ].drop_duplicates()
+    df_unarchive_dealers_to_show = df_unarchive_dealers_to_show.sort_values(by='BELONG_DEALER_NO').reset_index(drop=True)
     df_unarchive_dealers_to_show = df_unarchive_dealers_to_show.rename(
         columns=rename_dict
     )
-    print(
-        tabulate(
-            df_unarchive_dealers_to_show,
-            headers="keys",
-            tablefmt="pretty",
-            showindex=False,
-        )
+    df_unarchive_dealers_to_show_styled = (
+        df_unarchive_dealers_to_show.style.set_table_styles(
+            [
+                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
+                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
+            ]
+        ).hide(axis="index")
     )
-    print("*" * 200)
+    display(df_unarchive_dealers_to_show_styled)
+    print()
+    print("*" * 100)
 
 
 def main_show_dealer_results(
@@ -813,7 +886,7 @@ def main_show_dealer_results(
         "scanning_count_within_cluster",
         "is_remote",
         "is_suspicious",
-        "ratio_scanning_count",
+        "scanning_ratio_for_cluster",
         "dis_to_all_local_hotspots_centroid",
         "dis_to_all_local_points_centroid",
         "std_distance_within_cluster",
@@ -840,7 +913,7 @@ def main_show_dealer_results(
         "scanning_count_within_cluster": "簇内点数量",
         "is_remote": "是否异地",
         "is_suspicious": "是否可疑",
-        "ratio_scanning_count": "扫码量占比",
+        "scanning_ratio_for_cluster": "扫码量占比",
         "dis_to_overall_centroid": "热点质心到总质心的距离（质心距离）",
         "dis_to_all_local_hotspots_centroid": "距本地热点总质心",
         "dis_to_all_local_points_centroid": "距本地点总质心",
@@ -949,8 +1022,9 @@ def main_show_dealer_results(
     print("可疑热点标签:")
     print(suspicious_labels)
     df_dealer_cluster = df_dealer_cluster.rename(columns=rename_dict)
+    df_dealer_cluster_to_show = df_dealer_cluster.sort_values(by=['是否可疑', '簇标签'], ascending=[False, True])
     print(
-        tabulate(df_dealer_cluster, headers="keys", tablefmt="pretty", showindex=False)
+        tabulate(df_dealer_cluster_to_show, headers="keys", tablefmt="pretty", showindex=False)
     )
     print()
 
@@ -1021,6 +1095,7 @@ def main_show_dealer_results(
     )
     display(m)
     print()
+    print()
 
 
 def main_show_dealer_results_special(
@@ -1046,7 +1121,7 @@ def main_show_dealer_results_special(
         "scanning_count_within_cluster",
         "is_remote",
         "is_suspicious",
-        "ratio_scanning_count",
+        "scanning_ratio_for_cluster",
         "dis_to_all_local_hotspots_centroid",
         "dis_to_all_local_points_centroid",
         "std_distance_within_cluster",
@@ -1072,7 +1147,7 @@ def main_show_dealer_results_special(
         "scanning_count_within_cluster": "簇内点数量",
         "is_remote": "是否异地",
         "is_suspicious": "是否可疑",
-        "ratio_scanning_count": "扫码量占比",
+        "scanning_ratio_for_cluster": "扫码量占比",
         "dis_to_overall_centroid": "热点质心到总质心的距离（质心距离）",
         "dis_to_all_local_hotspots_centroid": "距本地热点总质心",
         "dis_to_all_local_points_centroid": "距本地点总质心",
@@ -1192,9 +1267,9 @@ def main_show_dealer_results_special(
 
     df_dealer_info = df_dealer_dealer_results[
         [
-            "remote_ratio",
-            "total_scanning_count",
-            "remote_scanning_count",
+            "dealer_remote_ratio",
+            "dealer_total_scanning_count",
+            "dealer_remote_scanning_count",
             "dealer_total_box_count",
         ]
     ].copy()
@@ -1364,8 +1439,9 @@ def main_show_dealer_results_special(
     )
     print(suspicious_labels)
     df_dealer_cluster = df_dealer_cluster.rename(columns=rename_dict)
+    df_dealer_cluster_to_show = df_dealer_cluster.sort_values(by=['是否可疑', '簇标签'], ascending=[False, True])
     print(
-        tabulate(df_dealer_cluster, headers="keys", tablefmt="pretty", showindex=False)
+        tabulate(df_dealer_cluster_to_show, headers="keys", tablefmt="pretty", showindex=False)
     )
     print()
     print("---一级热点地图---")
@@ -1391,9 +1467,10 @@ def main_show_dealer_results_special(
     )
     print(suspicious_labels_dense)
     df_dealer_cluster_dense = df_dealer_cluster_dense.rename(columns=rename_dict)
+    df_dealer_cluster_dense_to_show = df_dealer_cluster_dense.sort_values(by=['是否可疑', '簇标签'], ascending=[False, True])
     print(
         tabulate(
-            df_dealer_cluster_dense, headers="keys", tablefmt="pretty", showindex=False
+            df_dealer_cluster_dense_to_show, headers="keys", tablefmt="pretty", showindex=False
         )
     )
     print()
@@ -1405,4 +1482,5 @@ def main_show_dealer_results_special(
         polyline_points_list=polyline_points_list_total,
     )
     display(m2)
+    print()
     print()

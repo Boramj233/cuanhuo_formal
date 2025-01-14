@@ -1,7 +1,7 @@
 from .data_clean import main_generate_clean_region_data
 from .find_hotspots import main_find_hotspots, main_find_hotspots_continue_for_dense
 from .find_suspicious import main_find_suspicious
-from .libs import get_month_start_end, load_from_raw_outputs, extract_paths
+from .libs import get_month_start_end, extract_paths, read_outputs, save_model_results
 from .show_results import (
     main_show_results,
     main_show_results_special,
@@ -12,6 +12,7 @@ from .show_results import (
 )
 
 import os
+import pandas as pd
 
 
 ### IMPORTANT ###
@@ -45,8 +46,6 @@ def main_model_run(
     start_date_str, end_date_str = get_month_start_end(year_month_str)
     radius, min_samples = dbscan_parameters_tuple
 
-    # print(f'cleaned: {len(df_cleaned)}')
-
     df_total_centroids, df_total_scanning_locations = main_find_hotspots(
         df_cleaned,
         product_group_id,
@@ -59,23 +58,28 @@ def main_model_run(
     )
     # print(f'find_hotspots: {len(df_total_scanning_locations)}')
 
-    df_dealer_results, df_total_centroids, df_suspicious_hotspots_parameters = (
+    df_dealer_results, df_total_scanning_locations, df_total_centroids, df_suspicious_hotspots_parameters = (
         main_find_suspicious(
             df_total_scanning_locations,
             df_total_centroids,
-            year_month_str,
-            dealer_region_name,
-            product_group_id,
-            output_path,
             radius,
             min_samples,
-            save_results=save_results,
-            dense_model=False,
-            **thresholds,
+            **thresholds
         )
     )
-    # print(f'find_suspicious: {len(df_total_scanning_locations)}')
-    # print(df_dealers_without_archive)
+
+    if save_results:
+        save_model_results(
+                df_dealer_results,
+                df_total_scanning_locations,
+                df_total_centroids,
+                df_suspicious_hotspots_parameters,
+                year_month_str,
+                dealer_region_name,
+                product_group_id,
+                output_path,
+                dense_model=False,
+            )
 
     if show_results:
         main_show_results(
@@ -134,7 +138,7 @@ def main_model_run_special(
         dealer_scope_dict_path,
     )
 
-    df_total_centroids_dense, df_total_scanning_locations_dense = (
+    df_total_centroids_dense, df_total_scanning_locations_dense, df_total_centroids_sparse = (
         main_find_hotspots_continue_for_dense(
             df_total_centroids_sparse,
             df_total_scanning_locations_sparse,
@@ -150,41 +154,85 @@ def main_model_run_special(
         )
     )
 
-    (
-        df_dealer_results_sparse,
-        df_total_centroids_sparse,
-        df_suspicious_hotspots_parameters_sparse,
-    ) = main_find_suspicious(
+    
+    df_dealer_results_sparse, df_total_scanning_locations_sparse, df_total_centroids_sparse, df_suspicious_hotspots_parameters_sparse = main_find_suspicious(
         df_total_scanning_locations_sparse,
         df_total_centroids_sparse,
-        year_month_str,
-        dealer_region_name,
-        product_group_id,
-        output_path,
         radius,
         min_samples,
-        save_results=save_results,
-        dense_model=False,
         **sparse_thresholds,
     )
 
     (
         df_dealer_results_dense,
+        df_total_scanning_locations_dense,
         df_total_centroids_dense,
         df_suspicious_hotspots_parameters_dense,
     ) = main_find_suspicious(
         df_total_scanning_locations_dense,
         df_total_centroids_dense,
-        year_month_str,
-        dealer_region_name,
-        product_group_id,
-        output_path,
         radius_dense,
         min_samples_dense,
-        save_results=save_results,
-        dense_model=True,
         **dense_thresholds,
     )
+
+    # 'dealer_suspicious_points_count_final'
+    df_total_scanning_locations_sparse = df_total_scanning_locations_sparse.merge(
+        df_total_scanning_locations_dense[['BARCODE_BOTTLE', 'is_within_suspicious_hotspots']],
+        how='left', on='BARCODE_BOTTLE', suffixes=('_from_sparse', '_from_dense')
+        )
+    df_total_scanning_locations_sparse['is_within_suspicious_hotspots_from_dense'] =\
+        df_total_scanning_locations_sparse['is_within_suspicious_hotspots_from_dense'].fillna(0)
+    df_total_scanning_locations_sparse['is_within_suspicious_hotspots_final'] = (
+        (df_total_scanning_locations_sparse['is_within_suspicious_hotspots_from_dense'] == 1) | 
+        (df_total_scanning_locations_sparse['is_within_suspicious_hotspots_from_dense'] == 1)
+        ).astype(int)
+    df_dealer_suspicious_points_final = \
+        df_total_scanning_locations_sparse.groupby(by='BELONG_DEALER_NO')['is_within_suspicious_hotspots_final'].sum()\
+        .reset_index(name='dealer_suspicious_points_count')
+    dealer_suspicious_points_final = df_dealer_suspicious_points_final.set_index('BELONG_DEALER_NO')['dealer_suspicious_points_count'].to_dict()
+    df_dealer_results_sparse['dealer_suspicious_points_count_final'] = df_dealer_results_sparse['BELONG_DEALER_NO'].map(dealer_suspicious_points_final)
+
+    # 'dealer_suspicious_hotspot_count_final'
+    df_dealer_results_sparse = df_dealer_results_sparse.merge(
+        df_dealer_results_dense[["BELONG_DEALER_NO", 'dealer_suspicious_hotspot_count']],
+        how='left', on='BELONG_DEALER_NO', suffixes=('_from_sparse', '_from_dense')
+        )
+    df_dealer_results_sparse['dealer_suspicious_hotspot_count_from_dense'] = \
+        df_dealer_results_sparse['dealer_suspicious_hotspot_count_from_dense'].fillna(0)
+    df_dealer_results_sparse['dealer_suspicious_hotspot_count_final'] = \
+        (df_dealer_results_sparse['dealer_suspicious_hotspot_count_from_sparse'] + df_dealer_results_sparse['dealer_suspicious_hotspot_count_from_dense']).astype(int)
+    
+    # 'dealer_suspicious_points_ratio_final'
+    df_dealer_results_sparse['dealer_suspicious_points_ratio_final'] = \
+        (df_dealer_results_sparse['dealer_suspicious_points_count_final'] / df_dealer_results_sparse['dealer_total_scanning_count'])
+    
+    df_dealer_results_sparse[['dealer_suspicious_points_count_final', 'dealer_suspicious_hotspot_count_final']] = \
+        df_dealer_results_sparse[['dealer_suspicious_points_count_final', 'dealer_suspicious_hotspot_count_final']].astype(int)
+    
+    if save_results:
+        save_model_results(
+            df_dealer_results_sparse,
+            df_total_scanning_locations_sparse,
+            df_total_centroids_sparse,
+            df_suspicious_hotspots_parameters_sparse,
+            year_month_str,
+            dealer_region_name,
+            product_group_id,
+            output_path,
+            dense_model=False,
+        )
+        save_model_results(
+            df_dealer_results_dense,
+            df_total_scanning_locations_dense,
+            df_total_centroids_dense,
+            df_suspicious_hotspots_parameters_dense,
+            year_month_str,
+            dealer_region_name,
+            product_group_id,
+            output_path,
+            dense_model=True,
+        )
 
     if show_results:
         main_show_results_special(
@@ -214,7 +262,6 @@ def show_results_from_raw_outputs(
 ):
 
     start_date_str, end_date_str = get_month_start_end(year_month_str)
-
     folder_path = (
         f"{output_path}/{dealer_region_name}/{product_group_id}/{year_month_str}"
     )
@@ -222,66 +269,12 @@ def show_results_from_raw_outputs(
     if not os.path.exists(folder_path):
         print(f"没有找到数据路径: {folder_path}")
     else:
-
-        file_names = [
-            "df_dealer_results.pkl",
-            "df_total_centroids.pkl",
-            "df_total_scanning_locations.parquet",
-            "df_suspicious_hotspots_parameters.parquet",
-        ]
-
-        df_dealer_results_path = os.path.join(folder_path, file_names[0])
-        df_total_centroids_path = os.path.join(folder_path, file_names[1])
-        df_total_scanning_locations_path = os.path.join(folder_path, file_names[2])
-        df_suspicious_hotspots_parameters_path = os.path.join(
-            folder_path, file_names[3]
-        )
-
-        (
-            df_dealer_results,
-            df_total_centroids,
-            df_total_scanning_locations,
-            df_suspicious_hotspots_parameters,
-        ) = load_from_raw_outputs(
-            df_dealer_results_path,
-            df_total_centroids_path,
-            df_total_scanning_locations_path,
-            df_suspicious_hotspots_parameters_path,
-        )
+        df_dealer_results, df_total_centroids, df_total_scanning_locations, df_suspicious_hotspots_parameters =\
+            read_outputs(folder_path, dense_model=False)
 
         if dense_model:
-
-            dense_file_names = [
-                "df_dealer_results_dense.pkl",
-                "df_total_centroids_dense.pkl",
-                "df_total_scanning_locations_dense.parquet",
-                "df_suspicious_hotspots_parameters_dense.parquet",
-            ]
-            df_dealer_results_dense_path = os.path.join(
-                folder_path, dense_file_names[0]
-            )
-            df_total_centroids_dense_path = os.path.join(
-                folder_path, dense_file_names[1]
-            )
-            df_total_scanning_locations_dense_path = os.path.join(
-                folder_path, dense_file_names[2]
-            )
-            df_suspicious_hotspots_parameters_dense_path = os.path.join(
-                folder_path, dense_file_names[3]
-            )
-
-            (
-                df_dealer_results_dense,
-                df_total_centroids_dense,
-                df_total_scanning_locations_dense,
-                df_suspicious_hotspots_parameters_dense,
-            ) = load_from_raw_outputs(
-                df_dealer_results_dense_path,
-                df_total_centroids_dense_path,
-                df_total_scanning_locations_dense_path,
-                df_suspicious_hotspots_parameters_dense_path,
-            )
-
+            df_dealer_results_dense, df_total_centroids_dense, df_total_scanning_locations_dense, df_suspicious_hotspots_parameters_dense =\
+                read_outputs(folder_path, dense_model=True)
             if short_results:
                 main_show_region_short_results_special(
                     df_dealer_results,
@@ -291,7 +284,6 @@ def show_results_from_raw_outputs(
                     end_date_str,
                     dealer_region_name,
                 )
-
             else:
                 main_show_results_special(
                     df_dealer_results,
@@ -307,8 +299,8 @@ def show_results_from_raw_outputs(
                     end_date_str,
                     dealer_region_name,
                 )
-        else:
 
+        else:
             if short_results:
                 main_show_region_short_results(
                     df_dealer_results,
@@ -397,6 +389,7 @@ def show_region_results(
 
     dense_model = False
     special_dealer_region_names = ["天津大区", "北京大区", "上海大区"]
+
     if dealer_region_name in special_dealer_region_names:
         dense_model = True
 
@@ -433,34 +426,9 @@ def show_dealer_results(
         print(f"没有找到数据路径: {output_files_path}")
 
     else:
-        file_names = [
-            "df_dealer_results.pkl",
-            "df_total_centroids.pkl",
-            "df_total_scanning_locations.parquet",
-            "df_suspicious_hotspots_parameters.parquet",
-        ]
-
-        df_dealer_results_path = os.path.join(output_files_path, file_names[0])
-        df_total_centroids_path = os.path.join(output_files_path, file_names[1])
-        df_total_scanning_locations_path = os.path.join(
-            output_files_path, file_names[2]
-        )
-        df_suspicious_hotspots_parameters_path = os.path.join(
-            output_files_path, file_names[3]
-        )
-
-        (
-            df_dealer_results,
-            df_total_centroids,
-            df_total_scanning_locations,
-            df_suspicious_hotspots_parameters,
-        ) = load_from_raw_outputs(
-            df_dealer_results_path,
-            df_total_centroids_path,
-            df_total_scanning_locations_path,
-            df_suspicious_hotspots_parameters_path,
-        )
-
+        df_dealer_results, df_total_centroids, df_total_scanning_locations, df_suspicious_hotspots_parameters =\
+            read_outputs(output_files_path, dense_model=False)
+        
         df_dealer_dealer_results = df_dealer_results.loc[
             df_dealer_results.BELONG_DEALER_NO == dealer_id, :
         ].reset_index(drop=True)
@@ -480,37 +448,8 @@ def show_dealer_results(
         ######## 要检查是否为空 #########
         special_dealer_region_names = ["天津大区", "北京大区", "上海大区"]
         if dealer_region_name in special_dealer_region_names:
-            dense_file_names = [
-                "df_dealer_results.pkl",
-                "df_total_centroids.pkl",
-                "df_total_scanning_locations.parquet",
-                "df_suspicious_hotspots_parameters.parquet",
-            ]
-
-            df_dealer_results_dense_path = os.path.join(
-                output_files_path, dense_file_names[0]
-            )
-            df_total_centroids_dense_path = os.path.join(
-                output_files_path, dense_file_names[1]
-            )
-            df_total_scanning_locations_dense_path = os.path.join(
-                output_files_path, dense_file_names[2]
-            )
-            df_suspicious_hotspots_parameters_dense_path = os.path.join(
-                output_files_path, dense_file_names[3]
-            )
-
-            (
-                df_dealer_results_dense,
-                df_total_centroids_dense,
-                df_total_scanning_locations_dense,
-                df_suspicious_hotspots_parameters_dense,
-            ) = load_from_raw_outputs(
-                df_dealer_results_dense_path,
-                df_total_centroids_dense_path,
-                df_total_scanning_locations_dense_path,
-                df_suspicious_hotspots_parameters_dense_path,
-            )
+            df_dealer_results_dense, df_total_centroids_dense, df_total_scanning_locations_dense, df_suspicious_hotspots_parameters_dense =\
+                read_outputs(output_files_path, dense_model=False)
 
             df_dealer_dealer_results_dense = df_dealer_results_dense.loc[
                 df_dealer_results_dense.BELONG_DEALER_NO == dealer_id, :

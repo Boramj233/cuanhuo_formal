@@ -2,10 +2,11 @@ from datetime import datetime
 from geopy.distance import geodesic
 from sklearn.cluster import DBSCAN
 
-from .libs import (
+from .functions import (
     find_valid_regions_monthly_application,
+    find_equivalent_regions,
     get_address_from_lat_lon,
-    get_polylines_acodes_for_valid_regions,
+    get_polylines_adcodes_for_valid_regions,
 )
 
 import numpy as np
@@ -119,17 +120,18 @@ def get_scanning_locations_and_centroids(
 
 
 def is_belong_to(address_list, scope_list):
-    # 将高德api 返回的centroid位置格式 转化成 经营范围表的格式
-    # ['天津市', '[]'] -> ['天津', '天津市']
-    if (
-        address_list[0] in ["北京市", "上海市", "天津市", "重庆市"]
-        and address_list[1] == []
-    ):
-        address_list[1] = address_list[0]
-        address_list[0] = address_list[0][:2]
+    # # 将高德api 返回的centroid位置格式 转化成 经营范围表的格式
+    # # ['天津市', []] -> ['天津', '天津市']
+    # if (
+    #     address_list[0] in ["北京市", "上海市", "天津市", "重庆市"]
+    #     and address_list[1] == []
+    # ):
+    #     address_list[1] = address_list[0]
+    #     address_list[0] = address_list[0][:2]
 
-    if address_list[1] == []:
-        address_list[1] = address_list[2]
+    # # 这个可能是因为 ['河南省', [], '济源市']
+    # if address_list[1] == []:
+    #     address_list[1] = address_list[2]
 
     if "-1" in scope_list:
         level = scope_list.index("-1")
@@ -149,7 +151,7 @@ def verify_centroids_within_scope(df_centroids, df_scope):
     df_centroids_with_remote = df_centroids.copy()
     df_centroids_with_remote["is_remote"] = -100
     # -100: 未处理；-2： overall; -1: noise;
-    # 0：本地；1：异地；
+    # 0：本地；1：异地; -1: noise
 
     for i in range(len(df_centroids_with_remote)):
         cluster_label = df_centroids_with_remote.loc[i, "cluster_label"]
@@ -162,11 +164,35 @@ def verify_centroids_within_scope(df_centroids, df_scope):
                 .values.flatten()
                 .tolist()
             )
+            # 将高德api 返回的centroid位置格式 转化成 经营范围表的格式
+            # ['天津市', []] -> ['天津', '天津市']
+            # 高德api 通过经纬度查询地址名称特殊情况下 返回的为 [] （空list）
+            if (
+                address_list[0] in ["北京市", "上海市", "天津市", "重庆市"]
+                and address_list[1] == []
+            ):
+                address_list[1] = address_list[0]
+                address_list[0] = address_list[0][:2]
+
+            # # 这个可能是因为 ['河南省', '[]', '济源市']？？？
+            # if address_list[1] == []:
+            #     address_list[1] = address_list[2]
+
+            # 高德返回格式 -> 经营范围表格式
+            # ['广东省', '东莞市', '[]', '东坑镇'] -> ['广东省', '东莞市', '东坑镇', '-1']
+            # 红包扫码表 df_total 中 的特殊符号是 '[]' 字符串！！！！
+            if address_list[1] == '东莞市' and address_list[2] == []:
+                address_list[2] = address_list[3]
+                address_list[3] = "-1"
+
+
             flag = True
             for j in range(
                 len(df_scope)
             ):  # if df_scope 是空，不会进此循环， flag 永远是True.
                 scope_list = df_scope.loc[j, :].values.flatten().tolist()
+
+
                 if is_belong_to(address_list, scope_list):
                     flag = False  # 只要在一个有效经营范围内，就不是异地
                     break
@@ -186,7 +212,7 @@ def verify_points_within_scope(df_scanning_locations, df_scope):
     df_scanning_locations_with_new_remote_label = (
         df_scanning_locations.copy().reset_index(drop=True)
     )
-    df_scanning_locations_with_new_remote_label["point_remote_label_new"] = -100
+    df_scanning_locations_with_new_remote_label["is_remote_point_new"] = -100
     # -100: 未处理；-2： overall; -1: noise;
     # 0：本地；1：异地；
 
@@ -205,8 +231,17 @@ def verify_points_within_scope(df_scanning_locations, df_scope):
         if address_list[0] in ["天津市", "北京市", "上海市", "重庆市"]:
             address_list[0] = address_list[0][:2]
 
+        # 红包扫码表格式 -> 经营范围表格式
+        # ['广东省', '东莞市', '[]', '东坑镇'] -> ['广东省', '东莞市', '东坑镇', '-1']
+        # 红包扫码表 df_total 中 的特殊符号是 '[]' 字符串！！！！
+        if address_list[1] == '东莞市' and address_list[2] == '[]':
+            address_list[2] = address_list[3]
+            address_list[3] = "-1"
+
         flag = True
         for j in range(len(df_scope)):
+            # 新增
+            df_scope = df_scope[["PROVINCE", "CITY", "DISTRICT", "STREET"]]
             scope_list = df_scope.loc[j, :].values.flatten().tolist()
             if is_belong_to(address_list, scope_list):
                 flag = False
@@ -214,11 +249,11 @@ def verify_points_within_scope(df_scanning_locations, df_scope):
         # print(flag)
         if flag:
             df_scanning_locations_with_new_remote_label.loc[
-                i, "point_remote_label_new"
+                i, "is_remote_point_new"
             ] = 1
         else:
             df_scanning_locations_with_new_remote_label.loc[
-                i, "point_remote_label_new"
+                i, "is_remote_point_new"
             ] = 0
 
     return df_scanning_locations_with_new_remote_label
@@ -236,7 +271,7 @@ def find_remote_clusters_for_dealers(
     dealer_scope_dict_path,
 ):
     """
-    df_centroids - 
+    df_centroids -
     """
     with open(dealer_scope_dict_path, "rb") as f:
         dealer_scope_dict = pickle.load(f)
@@ -254,8 +289,12 @@ def find_remote_clusters_for_dealers(
         )
     )
 
-    df_valid_scope, is_within_archive = find_valid_regions_monthly_application(
-        dealer_id, product_group_id, start_date_str, end_date_str, dealer_scope_dict
+    # df_valid_scope, is_within_archive = find_valid_regions_monthly_application(
+    #     dealer_id, product_group_id, start_date_str, end_date_str, dealer_scope_dict
+    # )
+
+    df_valid_scope, is_within_archive = find_equivalent_regions(
+        dealer_id, product_group_id, start_date_str, dealer_scope_dict
     )
 
     df_valid_scope_short = df_valid_scope[["PROVINCE", "CITY", "DISTRICT", "STREET"]]
@@ -265,6 +304,12 @@ def find_remote_clusters_for_dealers(
     df_scanning_locations_with_remote_labels = verify_points_within_scope(
         df_scanning_locations_with_labels, df_valid_scope_short
     )
+
+    ##################### 这里增加一个 有效经营范围是否 为空， 用于最后单独取
+    df_centroids_with_remote_label["is_dealer_no_valid_scope"] = 0
+    if df_valid_scope.empty:
+        df_centroids_with_remote_label["is_dealer_no_valid_scope"] = 1
+    
 
     df_centroids_with_remote_label["is_dealer_within_archive"] = is_within_archive
     # df_centroids_with_remote_label['product_group_id'] = product_group_id
@@ -284,7 +329,6 @@ def find_remote_clusters_for_dealers(
     df_scanning_locations_with_remote_labels["is_dealer_within_archive"] = (
         is_within_archive
     )
-
 
     for label in df_centroids_with_remote_label.cluster_label:
 
@@ -364,7 +408,7 @@ def find_hotspots_for_region(
     config_file_path,
     dealer_scope_dict_path,
 ):
-    # 增加'dealer_polyline_points_list_total', 'dealer_acodes' -》 df_total_centroids
+    # 增加'dealer_polyline_points_list_total', 'dealer_adcodes' -》 df_total_centroids
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     ids_within_region = df_cleaned[
@@ -400,7 +444,8 @@ def find_hotspots_for_region(
 
             df_centroids_with_remote_label["dealer_id"] = dealer_id
             df_valid_scope = df_centroids_with_remote_label.loc[0, "dealer_valid_scope"]
-            polyline_points_list_total, acodes = get_polylines_acodes_for_valid_regions(
+            # print(dealer_id)
+            polyline_points_list_total, adcodes = get_polylines_adcodes_for_valid_regions(
                 df_valid_scope, config_file_path
             )
 
@@ -409,8 +454,8 @@ def find_hotspots_for_region(
                     lambda x: polyline_points_list_total, axis=1
                 )
             )
-            df_centroids_with_remote_label["dealer_acodes"] = (
-                df_centroids_with_remote_label.apply(lambda x: acodes, axis=1)
+            df_centroids_with_remote_label["dealer_adcodes"] = (
+                df_centroids_with_remote_label.apply(lambda x: adcodes, axis=1)
             )
             centroids_list.append(df_centroids_with_remote_label)
 
@@ -438,7 +483,6 @@ def find_hotspots_for_region(
     return df_total_centroids, df_total_scanning_locations, dealers_not_within_archive
 
 
-
 def calculate_distances_to_local_centroids_for_centroids(
     df_total_scanning_locations, df_total_centroids, dealers_not_within_archive
 ):
@@ -460,7 +504,7 @@ def calculate_distances_to_local_centroids_for_centroids(
 
         # 所有为本地的 扫码点 的质心
         df_all_local_points = df_locations.loc[
-            df_total_scanning_locations["point_remote_label_new"] == 0,
+            df_total_scanning_locations["is_remote_point_new"] == 0,
             ["LATITUDE", "LONGITUDE"],
         ]
         if len(df_all_local_points) != 0:
@@ -547,8 +591,8 @@ def calculate_distances_to_local_centroids_for_centroids(
 
 
 def find_closest_point_geodesic(fixed_point, coordinates):
-    # min_distance = float('inf')
-    min_distance = float("99999")
+    min_distance = float('inf')
+    # min_distance = float("99999")
     closest_point = None
 
     for coord in coordinates:
@@ -610,7 +654,7 @@ def calculate_min_distance_to_border(df_total_centroids):
     return df_total_centroids_new
 
 
-def main_find_hotspots(
+def find_hotspots_main(
     df_cleaned,
     product_group_id,
     start_date_str,
@@ -643,7 +687,7 @@ def main_find_hotspots(
     return df_total_centroids, df_total_scanning_locations
 
 
-def main_find_hotspots_continue_for_dense(
+def find_hotspots_continue_for_dense_main(
     df_total_centroids_sparse,
     df_total_scanning_locations_sparse,
     large_hotspots_threshold,
@@ -657,7 +701,7 @@ def main_find_hotspots_continue_for_dense(
     dealer_scope_dict_path,
 ):
     """
-    增加 df_total_centroids_sparse 
+    增加 df_total_centroids_sparse
     """
 
     large_hotspots_mask = (
@@ -667,10 +711,11 @@ def main_find_hotspots_continue_for_dense(
         >= large_hotspots_threshold
     )
 
-    df_total_centroids_sparse.loc[large_hotspots_mask, 'is_large_hotspot'] = 1
-    df_total_centroids_sparse.loc[~large_hotspots_mask, 'is_large_hotspot'] = 0
+    df_total_centroids_sparse.loc[large_hotspots_mask, "is_large_hotspot"] = 1
+    df_total_centroids_sparse.loc[~large_hotspots_mask, "is_large_hotspot"] = 0
 
     df_large_hotspots = df_total_centroids_sparse.loc[large_hotspots_mask, :]
+    
     df_large_hotspots_label = df_large_hotspots.loc[:, ["dealer_id", "cluster_label"]]
     df_large_hotspots_label = df_large_hotspots_label.reset_index(drop=True).rename(
         columns={"dealer_id": "BELONG_DEALER_NO"}
@@ -716,7 +761,7 @@ def main_find_hotspots_continue_for_dense(
         columns=[
             "dealer_total_scanning_count",
             "scanning_ratio_for_cluster",
-            'dealer_total_box_count',
+            "dealer_total_box_count",
             "box_count_ratio_for_cluster",
         ]
     )
@@ -789,7 +834,7 @@ def main_find_hotspots_continue_for_dense(
         df_total_centroids_dense["dis_to_all_local_hotspots_centroid"], 2
     )
 
-    # "scanning_ratio_for_cluster" ,"dealer_total_scanning_count", 
+    # "scanning_ratio_for_cluster" ,"dealer_total_scanning_count",
     # "box_count_ratio_for_cluster", "dealer_total_box_count"
     df_total_centroids_dense = pd.merge(
         df_total_centroids_dense,
@@ -813,4 +858,8 @@ def main_find_hotspots_continue_for_dense(
         df_total_centroids_dense
     )
 
-    return df_total_centroids_dense, df_total_scanning_locations_dense, df_total_centroids_sparse
+    return (
+        df_total_centroids_dense,
+        df_total_scanning_locations_dense,
+        df_total_centroids_sparse,
+    )

@@ -1,3 +1,0 @@
-考虑save model 拆到 find suspicious 外
-run_model_special 在储存df前，将df_dense 的一部分必要信息汇集到 df_sparse里，然后储存
-

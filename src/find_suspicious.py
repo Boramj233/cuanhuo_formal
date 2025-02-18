@@ -1,5 +1,3 @@
-from .libs import save_model_results
-
 import pandas as pd
 import numpy as np
 
@@ -14,9 +12,9 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     ]
 
     default_thresholds = {
-        "dis_hotspots_c_t": 35,
-        "dis_points_c_t": 0,
-        "dis_border_t": 5,
+        "dis_hotspots_c_t": 30,
+        "dis_points_c_t": 100,
+        "dis_border_t": 10,
         "ratio_scanning_t": 0.1,
         "scanning_count_t": 12,
         "std_quantile_t": 0.1,
@@ -31,9 +29,19 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     ratio_scanning_t = thresholds["ratio_scanning_t"]
     scanning_count_t = thresholds["scanning_count_t"]
 
-    std_distance_within_cluster_threshold = np.quantile(
-        local_hotspots_std, thresholds["std_quantile_t"]
-    )
+    # std_distance_within_cluster_threshold = np.quantile(
+    #     local_hotspots_std, thresholds["std_quantile_t"]
+    # )
+
+    if local_hotspots_std.size > 0:
+        std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds["std_quantile_t"])
+    else:
+        # Handle the case when the array is empty, e.g., set a default threshold value or raise a warning
+        std_distance_within_cluster_threshold = 0.05  # or other default value
+
+
+    if std_distance_within_cluster_threshold < 0.05:
+        std_distance_within_cluster_threshold = 0.05
     box_count_t = thresholds["box_count_t"]
 
     ##################################################################################################################################################
@@ -43,8 +51,8 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     suspicious_mask = (
         (hotspot_mask)
         & (df_total_centroids["is_remote"] == 1)
-        & (df_total_centroids["dis_to_all_local_hotspots_centroid"] >= dis_hotspots_c_t)
-        & (df_total_centroids["dis_to_all_local_points_centroid"] >= dis_points_c_t)
+        & ((df_total_centroids["dis_to_all_local_hotspots_centroid"] >= dis_hotspots_c_t) | (np.isnan(df_total_centroids["dis_to_all_local_hotspots_centroid"])))
+        & ((df_total_centroids["dis_to_all_local_points_centroid"] >= dis_points_c_t) | (np.isnan(df_total_centroids["dis_to_all_local_points_centroid"])))
         & (df_total_centroids["dis_border"] >= dis_border_t)
         & (
             (df_total_centroids["scanning_ratio_for_cluster"] >= ratio_scanning_t)
@@ -56,11 +64,7 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
                 >= std_distance_within_cluster_threshold
             )
             | (
-                (
-                    df_total_centroids["std_distance_within_cluster"]
-                    < std_distance_within_cluster_threshold
-                )
-                & (df_total_centroids["box_count_within_cluster"] >= box_count_t)
+                (df_total_centroids["box_count_within_cluster"] >= box_count_t)
             )
         )
     )
@@ -103,46 +107,61 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     )
 
     return df_total_centroids_with_suspicious_label, df_suspicious_hotspots_parameters
-    
 
-def add_dealer_features_to_df_locations(df_total_scanning_locations, df_total_centroids):
+
+def add_dealer_features_to_df_locations(
+    df_total_scanning_locations, df_total_centroids
+):
     df_total_scanning_locations_labels = df_total_scanning_locations.copy()
     df_total_scanning_locations_labels = df_total_scanning_locations_labels.merge(
-        df_total_centroids[['dealer_id', 'cluster_label', 'is_suspicious']],
-        how='left', left_on= ['BELONG_DEALER_NO', 'cluster_label'], right_on=['dealer_id', 'cluster_label']
+        df_total_centroids[["dealer_id", "cluster_label", "is_suspicious"]],
+        how="left",
+        left_on=["BELONG_DEALER_NO", "cluster_label"],
+        right_on=["dealer_id", "cluster_label"],
     )
-    df_total_scanning_locations_labels = df_total_scanning_locations_labels.drop(columns=['dealer_id'])
-    df_total_scanning_locations_labels = df_total_scanning_locations_labels.rename(columns={
-        'is_suspicious': 'is_within_suspicious_hotspots'
-    })
+    df_total_scanning_locations_labels = df_total_scanning_locations_labels.drop(
+        columns=["dealer_id"]
+    )
+    df_total_scanning_locations_labels = df_total_scanning_locations_labels.rename(
+        columns={"is_suspicious": "is_within_suspicious_hotspots"}
+    )
 
     df_total_scanning_locations_labels["dealer_remote_ratio"] = (
         df_total_scanning_locations_labels.groupby("BELONG_DEALER_NO")[
-            "point_remote_label_new"
+            "is_remote_point_new"
         ].transform("mean")
     )
     df_total_scanning_locations_labels["dealer_total_scanning_count"] = (
         df_total_scanning_locations_labels.groupby("BELONG_DEALER_NO")[
             "BARCODE_BOTTLE"
         ].transform("nunique")
-    ) 
+    )
 
     df_total_scanning_locations_labels["dealer_remote_scanning_count"] = (
         df_total_scanning_locations_labels.groupby("BELONG_DEALER_NO")[
-            "point_remote_label_new"
+            "is_remote_point_new"
         ].transform("sum")
     )
 
     # df_total_scanning_locations_labels['is_within_suspicious_hotspots'] = df_total_scanning_locations_labels['is_within_suspicious_hotspots'].apply(
     #     lambda x: 0 if x==-1 else x
     # )
-    df_total_scanning_locations_labels.loc[df_total_scanning_locations_labels['is_within_suspicious_hotspots'] == -1, 'is_within_suspicious_hotspots'] = 0
-    df_total_scanning_locations_labels['dealer_suspicious_points_ratio'] = \
-        df_total_scanning_locations_labels.groupby('BELONG_DEALER_NO')['is_within_suspicious_hotspots'].transform('mean')
-    # df_total_scanning_locations_labels['dealer_suspicious_points_ratio'] = df_total_scanning_locations_labels['dealer_suspicious_points_ratio'].round(2) 
-    df_total_scanning_locations_labels['dealer_suspicious_points_count'] = \
-        df_total_scanning_locations_labels.groupby('BELONG_DEALER_NO')['is_within_suspicious_hotspots'].transform('sum')
-    
+    df_total_scanning_locations_labels.loc[
+        df_total_scanning_locations_labels["is_within_suspicious_hotspots"] == -1,
+        "is_within_suspicious_hotspots",
+    ] = 0
+    df_total_scanning_locations_labels["dealer_suspicious_points_ratio"] = (
+        df_total_scanning_locations_labels.groupby("BELONG_DEALER_NO")[
+            "is_within_suspicious_hotspots"
+        ].transform("mean")
+    )
+    # df_total_scanning_locations_labels['dealer_suspicious_points_ratio'] = df_total_scanning_locations_labels['dealer_suspicious_points_ratio'].round(2)
+    df_total_scanning_locations_labels["dealer_suspicious_points_count"] = (
+        df_total_scanning_locations_labels.groupby("BELONG_DEALER_NO")[
+            "is_within_suspicious_hotspots"
+        ].transform("sum")
+    )
+
     return df_total_scanning_locations_labels
 
 
@@ -155,11 +174,9 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
         subset=["dealer_id", "cluster_label"]
     )  # 可以不加drop_duplicates
 
-    df_suspicious_hotspots = (
-        df_total_centroids.loc[
-            df_total_centroids.is_suspicious == 1, :
-        ].reset_index(drop=True)
-    )
+    df_suspicious_hotspots = df_total_centroids.loc[
+        df_total_centroids.is_suspicious == 1, :
+    ].reset_index(drop=True)
 
     # df_total_centroids
     df_total_centroids_to_merge = df_total_centroids.loc[
@@ -169,7 +186,8 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
             "dealer_total_box_count",
             "dealer_valid_scope",
             "dealer_polyline_points_list_total",
-            "dealer_acodes",
+            "dealer_adcodes",
+            "is_dealer_no_valid_scope"
         ],
     ].drop_duplicates(subset=["dealer_id"])
     df_total_centroids_to_merge = df_total_centroids_to_merge.rename(
@@ -211,25 +229,21 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
     )
 
     # df_total_scanning_locations
-    df_total_scanning_locations_to_merge = (
-        df_total_scanning_locations.loc[
-            :,
-            [
-                "BELONG_DEALER_NO",
-                "BELONG_DEALER_NAME",
-                "PRODUCT_GROUP_CODE",
-                "PRODUCT_GROUP_NAME",
-                "dealer_total_scanning_count",
-                "dealer_remote_scanning_count",
-                "dealer_remote_ratio",
-                "is_dealer_within_archive",
-
-                'dealer_suspicious_points_ratio', 
-                'dealer_suspicious_points_count'
-            ],
-        ].drop_duplicates()
-    )
-
+    df_total_scanning_locations_to_merge = df_total_scanning_locations.loc[
+        :,
+        [
+            "BELONG_DEALER_NO",
+            "BELONG_DEALER_NAME",
+            "PRODUCT_GROUP_CODE",
+            "PRODUCT_GROUP_NAME",
+            "dealer_total_scanning_count",
+            "dealer_remote_scanning_count",
+            "dealer_remote_ratio",
+            "is_dealer_within_archive",
+            "dealer_suspicious_points_ratio",
+            "dealer_suspicious_points_count",
+        ],
+    ].drop_duplicates()
 
     df_result = pd.merge(
         df_total_scanning_locations_to_merge,
@@ -245,9 +259,10 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
     )
 
     # 将所有缺失值填充为 0
-    df_result["dealer_suspicious_hotspot_ratio"] = df_result["dealer_suspicious_hotspot_count"] / df_result["dealer_hotspot_count"]
+    df_result["dealer_suspicious_hotspot_ratio"] = (
+        df_result["dealer_suspicious_hotspot_count"] / df_result["dealer_hotspot_count"]
+    )
 
-    
     df_result.fillna(0, inplace=True)
 
     df_result[
@@ -256,7 +271,7 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
             "dealer_remote_hotspot_count",
             "dealer_suspicious_hotspot_count",
             "dealer_total_box_count",
-            'dealer_suspicious_points_count'
+            "dealer_suspicious_points_count",
         ]
     ] = df_result[
         [
@@ -264,7 +279,7 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
             "dealer_remote_hotspot_count",
             "dealer_suspicious_hotspot_count",
             "dealer_total_box_count",
-            'dealer_suspicious_points_count'
+            "dealer_suspicious_points_count",
         ]
     ].astype(
         int
@@ -276,147 +291,6 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
 
     df_result = df_result.reset_index(drop=True)
     return df_result
-
-# def find_suspicious_hotspots_generate_dealer_info(
-#     df_total_scanning_locations, df_total_centroids, radius, min_samples, **thresholds
-# ):
-#     df_total_scanning_locations_features = df_total_scanning_locations.copy()
-#     df_hotspots = df_total_centroids.loc[
-#         ~(df_total_centroids["cluster_label"].isin([-2, -1])), :
-#     ]
-#     df_hotspots = df_hotspots.drop_duplicates(
-#         subset=["dealer_id", "cluster_label"]
-#     )  # 可以不加drop_duplicates
-
-#     df_suspicious_hotspots, df_total_centroids, df_suspicious_hotspots_parameters = (
-#         filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **thresholds)
-#     )
-#     print(f"当前规则下可疑热点数： {len(df_suspicious_hotspots)}")
-#     print()
-
-#     df_total_scanning_locations_features["remote_ratio"] = (
-#         df_total_scanning_locations_features.groupby("BELONG_DEALER_NO")[
-#             "point_remote_label_new"
-#         ].transform("mean")
-#     )
-#     df_total_scanning_locations_features["total_scanning_count"] = (
-#         df_total_scanning_locations_features.groupby("BELONG_DEALER_NO")[
-#             "BARCODE_BOTTLE"
-#         ].transform("nunique")
-#     )
-#     df_total_scanning_locations_features["remote_scanning_count"] = (
-#         df_total_scanning_locations_features.groupby("BELONG_DEALER_NO")[
-#             "point_remote_label_new"
-#         ].transform("sum")
-#     )
-
-#     df_total_centroids_to_merge = df_total_centroids.loc[
-#         :,
-#         [
-#             "dealer_id",
-#             "dealer_total_box_count",
-#             "dealer_valid_scope",
-#             "dealer_polyline_points_list_total",
-#             "dealer_acodes",
-#         ],
-#     ].drop_duplicates(subset=["dealer_id"])
-#     df_total_centroids_to_merge = df_total_centroids_to_merge.rename(
-#         columns={"dealer_id": "BELONG_DEALER_NO"}
-#     )
-
-#     df_hotspots["dealer_hotspot_count"] = df_hotspots.groupby("dealer_id")[
-#         "cluster_label"
-#     ].transform("count")
-#     df_hotspots["dealer_remote_hotspot_count"] = df_hotspots.groupby("dealer_id")[
-#         ["is_remote"]
-#     ].transform("sum")
-#     df_hotspots["remote_hotspot_ratio"] = df_hotspots.groupby("dealer_id")[
-#         ["is_remote"]
-#     ].transform("mean")
-#     df_hotspots_to_merge = df_hotspots.loc[
-#         :,
-#         [
-#             "dealer_id",
-#             "dealer_hotspot_count",
-#             "dealer_remote_hotspot_count",
-#             "remote_hotspot_ratio",
-#         ],
-#     ].drop_duplicates()
-#     df_hotspots_to_merge = df_hotspots_to_merge.rename(
-#         columns={"dealer_id": "BELONG_DEALER_NO"}
-#     )
-
-#     df_suspicious_hotspots["dealer_suspicious_hotspot_count"] = (
-#         df_suspicious_hotspots.groupby("dealer_id")["cluster_label"].transform("count")
-#     )
-#     df_suspicious_hotspots_to_merge = df_suspicious_hotspots.loc[
-#         :, ["dealer_id", "dealer_suspicious_hotspot_count"]
-#     ].drop_duplicates()
-#     df_suspicious_hotspots_to_merge = df_suspicious_hotspots_to_merge.rename(
-#         columns={"dealer_id": "BELONG_DEALER_NO"}
-#     )
-
-#     df_total_scanning_locations_features_to_merge = (
-#         df_total_scanning_locations_features.loc[
-#             :,
-#             [
-#                 "BELONG_DEALER_NO",
-#                 "BELONG_DEALER_NAME",
-#                 "PRODUCT_GROUP_CODE",
-#                 "PRODUCT_GROUP_NAME",
-#                 "total_scanning_count",
-#                 "remote_scanning_count",
-#                 "remote_ratio",
-#                 "is_dealer_within_archive",
-#             ],
-#         ].drop_duplicates()
-#     )
-
-#     df_result = pd.merge(
-#         df_total_scanning_locations_features_to_merge,
-#         df_total_centroids_to_merge,
-#         on="BELONG_DEALER_NO",
-#         how="left",
-#     )
-#     df_result = pd.merge(
-#         df_result, df_hotspots_to_merge, on="BELONG_DEALER_NO", how="left"
-#     )
-#     df_result = pd.merge(
-#         df_result, df_suspicious_hotspots_to_merge, on="BELONG_DEALER_NO", how="left"
-#     )
-
-#     # 将所有缺失值填充为 0
-#     df_result["suspicious_hotspot_ratio"] = round(
-#         df_result["dealer_suspicious_hotspot_count"]
-#         / df_result["dealer_hotspot_count"],
-#         2,
-#     )
-#     df_result.fillna(0, inplace=True)
-
-#     df_result[
-#         [
-#             "dealer_hotspot_count",
-#             "dealer_remote_hotspot_count",
-#             "dealer_suspicious_hotspot_count",
-#             "dealer_total_box_count",
-#         ]
-#     ] = df_result[
-#         [
-#             "dealer_hotspot_count",
-#             "dealer_remote_hotspot_count",
-#             "dealer_suspicious_hotspot_count",
-#             "dealer_total_box_count",
-#         ]
-#     ].astype(
-#         int
-#     )
-
-#     df_result[["remote_ratio", "remote_hotspot_ratio"]] = df_result[
-#         ["remote_ratio", "remote_hotspot_ratio"]
-#     ].round(2)
-
-#     df_result = df_result.reset_index(drop=True)
-#     return df_result, df_total_centroids, df_suspicious_hotspots_parameters
 
 
 def add_suspicious_dealer_label(df_dealer_results):
@@ -432,54 +306,31 @@ def add_suspicious_dealer_label(df_dealer_results):
         dealer_suspicious_mask, "is_dealer_suspicious"
     ] = 1
 
+
     return df_dealer_results_with_suspicious_label
 
 
-# def main_find_suspicious(
-#     df_total_scanning_locations,
-#     df_total_centroids,
-#     year_month_str,
-#     dealer_region_name,
-#     product_group_id,
-#     output_path,
-#     radius,
-#     min_samples,
-#     save_results=True,
-#     dense_model=False,
-#     **thresholds,
-# ):
-#     df_total_centroids, df_suspicious_hotspots_parameters = filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **thresholds)
-#     df_total_scanning_locations = add_dealer_features_to_df_locations(df_total_scanning_locations, df_total_centroids)
-#     df_dealer_results = generate_df_dealer_results(df_total_scanning_locations, df_total_centroids)
-#     df_dealer_results = add_suspicious_dealer_label(df_dealer_results)
-
-#     # if save_results:
-#     #     # print('save new results.')
-#     #     save_model_results(
-#     #         df_dealer_results,
-#     #         df_total_centroids,
-#     #         df_suspicious_hotspots_parameters,
-#     #         df_total_scanning_locations,
-#     #         year_month_str,
-#     #         dealer_region_name,
-#     #         product_group_id,
-#     #         output_path,
-#     #         dense_model=dense_model,
-#     #     )
-
-#     return df_dealer_results, df_total_centroids, df_suspicious_hotspots_parameters
-
-
-def main_find_suspicious(
+def find_suspicious_main(
     df_total_scanning_locations,
     df_total_centroids,
     radius,
     min_samples,
     **thresholds,
 ):
-    df_total_centroids, df_suspicious_hotspots_parameters = filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **thresholds)
-    df_total_scanning_locations = add_dealer_features_to_df_locations(df_total_scanning_locations, df_total_centroids)
-    df_dealer_results = generate_df_dealer_results(df_total_scanning_locations, df_total_centroids)
+    df_total_centroids, df_suspicious_hotspots_parameters = filter_suspicious_hotspot(
+        df_total_centroids, radius, min_samples, **thresholds
+    )
+    df_total_scanning_locations = add_dealer_features_to_df_locations(
+        df_total_scanning_locations, df_total_centroids
+    )
+    df_dealer_results = generate_df_dealer_results(
+        df_total_scanning_locations, df_total_centroids
+    )
     df_dealer_results = add_suspicious_dealer_label(df_dealer_results)
 
-    return df_dealer_results, df_total_scanning_locations, df_total_centroids, df_suspicious_hotspots_parameters
+    return (
+        df_dealer_results,
+        df_total_scanning_locations,
+        df_total_centroids,
+        df_suspicious_hotspots_parameters,
+    )

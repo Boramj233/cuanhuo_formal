@@ -34,11 +34,12 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     # )
 
     if local_hotspots_std.size > 0:
-        std_distance_within_cluster_threshold = np.quantile(local_hotspots_std, thresholds["std_quantile_t"])
+        std_distance_within_cluster_threshold = np.quantile(
+            local_hotspots_std, thresholds["std_quantile_t"]
+        )
     else:
         # Handle the case when the array is empty, e.g., set a default threshold value or raise a warning
         std_distance_within_cluster_threshold = 0.05  # or other default value
-
 
     if std_distance_within_cluster_threshold < 0.05:
         std_distance_within_cluster_threshold = 0.05
@@ -51,8 +52,17 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     suspicious_mask = (
         (hotspot_mask)
         & (df_total_centroids["is_remote"] == 1)
-        & ((df_total_centroids["dis_to_all_local_hotspots_centroid"] >= dis_hotspots_c_t) | (np.isnan(df_total_centroids["dis_to_all_local_hotspots_centroid"])))
-        & ((df_total_centroids["dis_to_all_local_points_centroid"] >= dis_points_c_t) | (np.isnan(df_total_centroids["dis_to_all_local_points_centroid"])))
+        & (
+            (
+                df_total_centroids["dis_to_all_local_hotspots_centroid"]
+                >= dis_hotspots_c_t
+            )
+            | (np.isnan(df_total_centroids["dis_to_all_local_hotspots_centroid"]))
+        )
+        & (
+            (df_total_centroids["dis_to_all_local_points_centroid"] >= dis_points_c_t)
+            | (np.isnan(df_total_centroids["dis_to_all_local_points_centroid"]))
+        )
         & (df_total_centroids["dis_border"] >= dis_border_t)
         & (
             (df_total_centroids["scanning_ratio_for_cluster"] >= ratio_scanning_t)
@@ -63,9 +73,7 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
                 df_total_centroids["std_distance_within_cluster"]
                 >= std_distance_within_cluster_threshold
             )
-            | (
-                (df_total_centroids["box_count_within_cluster"] >= box_count_t)
-            )
+            | ((df_total_centroids["box_count_within_cluster"] >= box_count_t))
         )
     )
 
@@ -76,7 +84,7 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     df_total_centroids_with_suspicious_label.loc[~suspicious_mask, "is_suspicious"] = 0
     df_total_centroids_with_suspicious_label.loc[~hotspot_mask, "is_suspicious"] = (
         df_total_centroids_with_suspicious_label.loc[~hotspot_mask, "cluster_label"]
-    )
+    )  # 这个考虑更改下
     # df_total_centroids_with_suspicious_label['is_suspicious'] = df_total_centroids_with_suspicious_label['is_suspicious'].fillna(0).astype(int)
 
     df_suspicious_hotspots = (
@@ -187,7 +195,7 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
             "dealer_valid_scope",
             "dealer_polyline_points_list_total",
             "dealer_adcodes",
-            "is_dealer_no_valid_scope"
+            "is_dealer_no_valid_scope",
         ],
     ].drop_duplicates(subset=["dealer_id"])
     df_total_centroids_to_merge = df_total_centroids_to_merge.rename(
@@ -228,6 +236,7 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
         columns={"dealer_id": "BELONG_DEALER_NO"}
     )
 
+    # sir this way
     # df_total_scanning_locations
     df_total_scanning_locations_to_merge = df_total_scanning_locations.loc[
         :,
@@ -305,7 +314,6 @@ def add_suspicious_dealer_label(df_dealer_results):
     df_dealer_results_with_suspicious_label.loc[
         dealer_suspicious_mask, "is_dealer_suspicious"
     ] = 1
-
 
     return df_dealer_results_with_suspicious_label
 

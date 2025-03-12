@@ -3,10 +3,11 @@ from geopy.distance import geodesic
 from sklearn.cluster import DBSCAN
 
 from .functions import (
-    find_valid_regions_monthly_application,
+    find_closest_point_geodesic,
     find_equivalent_regions,
-    get_address_from_lat_lon,
+    get_address_raw_data_from_lat_lon,
     get_polylines_adcodes_for_valid_regions,
+    is_belong_to,
 )
 
 import numpy as np
@@ -16,15 +17,53 @@ import pickle
 
 ### Find hotspots
 def find_clusters_for_dealer(
-    df_cleaned,
-    dealer_id,
-    product_group_id,
-    start_date_str,
-    end_date_str,
-    radius,
-    min_samples,
-):
+    df_cleaned: pd.DataFrame,
+    dealer_id: str,
+    product_group_id: str,
+    start_date_str: str,
+    end_date_str: str,
+    radius: float,
+    min_samples: int,
+) -> pd.DataFrame:
+    """
+    给定清洗过的扫码记录数据和DBSCAN算法的模型参数，返回给定经销商品项在一定时间段内, 基于经纬度经过DBSCAN算法，带有聚类label结果的扫码记录数据帧。
 
+    Parameters
+    ----------
+    df_cleaned: pd.DataFrame
+        经过清洗后的包含扫码记录数据的数据帧。
+
+    dealer_id: str
+        给定的经销商编码。
+
+    product_group_id: str
+        给定的产品品项编码。
+
+    start_date_str: str
+        所选时间段的第一天。格式为"%Y-%m-%d"，例如"2024-12-01".
+
+    end_date_str: str
+        所选时间段的最后一天。格式为"%Y-%m-%d"，例如"2024-12-31".
+
+    radius: float
+        模型所用基于经纬度的DBSCAN聚类算法的 半径大小(邻域距离阈值)。在模型中可以粗略的理解为聚簇时的半径大小(地球球面距离, 如4km)。
+
+    min_samples: int
+        模型所用基于经纬度的DBSCAN聚类算法的 成簇最少样本数(邻域中数据点个数的最小个数)。在模型中可以粗略地理解为聚簇时邻域内的最少开瓶扫码数(如6瓶)。
+
+    Returns
+    -------
+    pd.DataFrame
+        经过DBSCAN聚类后, 给定时间段内该经销商品项的所有扫码记录依照地理位置（经纬度）聚簇的结果（"cluster_label"）。
+
+    Description
+    -----------
+    此模型中利用此函数对于单个给定的经销商品项，根据经纬度聚簇。结果可以将开瓶密度达到阈值的区域(簇)寻找出来。
+    所有DBSCAN算法依据经纬度二维数据, 距离采用"haversine"距离。因此聚簇的两个参数"radius"和"min_samples"可以粗略地认为具有现实意义，
+    即最小距离半径和半径内的最小开瓶扫码数。例如(4, 6)可以粗略理解为聚簇的密度阈值条件是半径为4公里的范围内最小开瓶扫码数为6瓶。
+
+    "cluster_label": -1为未被聚成簇的离散点。
+    """
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
 
@@ -52,10 +91,30 @@ def find_clusters_for_dealer(
         )  # 地球半径6371公里
         df_scanning_locations["cluster_label"] = dbscan.fit_predict(data_rad)
 
+    df_scanning_locations = df_scanning_locations.reset_index(drop=True)
     return df_scanning_locations
 
 
-def get_centroids(df_scanning_locations, config_file_path):
+def get_centroids(
+    df_scanning_locations: pd.DataFrame, config_file_path: str
+) -> pd.DataFrame:
+    """
+    基于经过聚簇后的开瓶扫码df, 生成包含每个簇相关信息的df, 计算质心并通过高德API获取质心地址信息。
+
+    Parameters
+    ----------
+    df_scanning_locations: pd.DataFrame
+        经过聚簇后的开瓶扫码信息df。
+
+    config_file_path: str
+        配置文件的路径，包含高德 API 密钥。
+
+    Returns
+    -------
+    pd.DataFrame
+        包含聚簇结果，簇维度的相关信息df。
+
+    """
 
     if not df_scanning_locations.empty:
         centroids = df_scanning_locations.groupby("cluster_label")[
@@ -69,8 +128,8 @@ def get_centroids(df_scanning_locations, config_file_path):
         df_centroids["street"] = "-1"
 
         for i in range(len(df_centroids)):
-            location = f"{round(df_centroids.loc[i, 'LONGITUDE'], 2)}, {round(df_centroids.loc[i, 'LATITUDE'], 2)}"  # Gaode api 经度在前，纬度在后
-            address = get_address_from_lat_lon(location, config_file_path)
+            location = f"{round(df_centroids.loc[i, 'LONGITUDE'], 3)}, {round(df_centroids.loc[i, 'LATITUDE'], 3)}"  # Gaode api 经度在前，纬度在后
+            address = get_address_raw_data_from_lat_lon(location, config_file_path)
             df_centroids.at[i, "formatted_address"] = address["regeocode"][
                 "formatted_address"
             ]
@@ -86,76 +145,73 @@ def get_centroids(df_scanning_locations, config_file_path):
             df_centroids.at[i, "street"] = address["regeocode"]["addressComponent"][
                 "township"
             ]
-
+        df_centroids = df_centroids.reset_index(drop=True)
         return df_centroids
     return pd.DataFrame()
 
 
-def get_scanning_locations_and_centroids(
-    df_cleaned,
-    dealer_id,
-    product_group_id,
-    start_date_str,
-    end_date_str,
-    radius,
-    min_samples,
-    config_file_path,
-):
-    df_scanning_loactions = find_clusters_for_dealer(
-        df_cleaned,
-        dealer_id,
-        product_group_id,
-        start_date_str,
-        end_date_str,
-        radius,
-        min_samples,
-    )
-    if df_scanning_loactions.empty:
-        return pd.DataFrame(), pd.DataFrame()
+# def get_scanning_locations_and_centroids(
+#     df_cleaned,
+#     dealer_id,
+#     product_group_id,
+#     start_date_str,
+#     end_date_str,
+#     radius,
+#     min_samples,
+#     config_file_path,
+# ):
+#     df_scanning_loactions = find_clusters_for_dealer(
+#         df_cleaned,
+#         dealer_id,
+#         product_group_id,
+#         start_date_str,
+#         end_date_str,
+#         radius,
+#         min_samples,
+#     )
+#     if df_scanning_loactions.empty:
+#         return pd.DataFrame(), pd.DataFrame()
 
-    df_centroids = get_centroids(df_scanning_loactions, config_file_path)
-    df_scanning_loactions = df_scanning_loactions.reset_index(drop=True)
+#     df_centroids = get_centroids(df_scanning_loactions, config_file_path)
+#     df_scanning_loactions = df_scanning_loactions.reset_index(drop=True)
 
-    return df_scanning_loactions, df_centroids
-
-
-def is_belong_to(address_list, scope_list):
-    # # 将高德api 返回的centroid位置格式 转化成 经营范围表的格式
-    # # ['天津市', []] -> ['天津', '天津市']
-    # if (
-    #     address_list[0] in ["北京市", "上海市", "天津市", "重庆市"]
-    #     and address_list[1] == []
-    # ):
-    #     address_list[1] = address_list[0]
-    #     address_list[0] = address_list[0][:2]
-
-    # # 这个可能是因为 ['河南省', [], '济源市']
-    # if address_list[1] == []:
-    #     address_list[1] = address_list[2]
-
-    if "-1" in scope_list:
-        level = scope_list.index("-1")
-    else:
-        level = len(scope_list)
-
-    if level == 0:
-        return False
-
-    for i in range(level):
-        if address_list[i] != scope_list[i]:
-            return False
-    return True
+#     return df_scanning_loactions, df_centroids
 
 
-def verify_centroids_within_scope(df_centroids, df_scope):
+def verify_centroids_within_scope(
+    df_centroids: pd.DataFrame, df_scope: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    判断经销商的每个开瓶簇心是否在其经营范围内, 并加以标记。
+
+    Parameters
+    ----------
+    df_centroids: pd.DataFrame
+        包含经销商簇维度信息的df。
+
+    df_scope: pd.DataFrame
+        用于判断是否为异地的经销商品项经营范围df。(应该只包含认定"有效的"经营范围记录)
+
+    Returns
+    -------
+    pd.DataFrame
+        包含每个簇心是否异地"is_remote"标签的簇维度df.
+
+    Description
+    -----------
+    簇维度df, df_centroids中的"is_remote":
+        0: 本地；
+        1: 异地；
+        -1: 离散点的集合, 并非是真实的簇；
+        -100: 该簇未进行判断是否异地, 特殊提示符。
+    """
     df_centroids_with_remote = df_centroids.copy()
     df_centroids_with_remote["is_remote"] = -100
-    # -100: 未处理；-2： overall; -1: noise;
-    # 0：本地；1：异地; -1: noise
 
+    # 0：本地；1：异地; -1: noise
+    df_centroids_with_remote = df_centroids_with_remote.reset_index(drop=True)
     for i in range(len(df_centroids_with_remote)):
         cluster_label = df_centroids_with_remote.loc[i, "cluster_label"]
-
         if cluster_label != -1:
             address_list = (
                 df_centroids_with_remote.loc[
@@ -173,25 +229,28 @@ def verify_centroids_within_scope(df_centroids, df_scope):
             ):
                 address_list[1] = address_list[0]
                 address_list[0] = address_list[0][:2]
-
-            # # 这个可能是因为 ['河南省', '[]', '济源市']？？？
-            # if address_list[1] == []:
-            #     address_list[1] = address_list[2]
-
+            # 这个可能是因为 ['河南省', [], '济源市']
+            # 将高德api 返回的centroid 位置格式转化成 经营范围表的格式
+            if address_list[1] == []:
+                address_list[1] = address_list[2]
             # 高德返回格式 -> 经营范围表格式
             # ['广东省', '东莞市', '[]', '东坑镇'] -> ['广东省', '东莞市', '东坑镇', '-1']
             # 红包扫码表 df_total 中 的特殊符号是 '[]' 字符串！！！！
-            if address_list[1] == '东莞市' and address_list[2] == []:
+            if address_list[1] == "东莞市" and address_list[2] == []:
                 address_list[2] = address_list[3]
                 address_list[3] = "-1"
 
-
+            # 新增
+            df_copy_to_use = df_scope.copy()
+            df_copy_to_use = df_copy_to_use.loc[
+                :, ["PROVINCE", "CITY", "DISTRICT", "STREET"]
+            ]
             flag = True
             for j in range(
-                len(df_scope)
-            ):  # if df_scope 是空，不会进此循环， flag 永远是True.
-                scope_list = df_scope.loc[j, :].values.flatten().tolist()
+                len(df_copy_to_use)
+            ):  # if df_copy_to_use 是空，不会进此循环， flag 永远是True.
 
+                scope_list = df_copy_to_use.loc[j, :].values.flatten().tolist()
 
                 if is_belong_to(address_list, scope_list):
                     flag = False  # 只要在一个有效经营范围内，就不是异地
@@ -203,17 +262,35 @@ def verify_centroids_within_scope(df_centroids, df_scope):
             else:
                 df_centroids_with_remote.loc[i, "is_remote"] = 0
         else:
-            df_centroids_with_remote.loc[i, "is_remote"] = cluster_label
+            df_centroids_with_remote.loc[i, "is_remote"] = (
+                cluster_label  # 噪声点的簇心(label: -1)的"is_remote"标签也标记为-1.
+            )
     return df_centroids_with_remote
 
 
-def verify_points_within_scope(df_scanning_locations, df_scope):
+def verify_points_within_scope(
+    df_scanning_locations: pd.DataFrame, df_scope: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    给定开瓶扫码df和经营范围df, 判断每一条开瓶记录是否在给定的经营范围内。
+
+    Parameters
+    ----------
+    df_scanning_locations: pd.DataFrame
+        开瓶扫码记录df。
+
+    df_scope: pd.DataFrame
+        经营范围信息df。
+
+    Returns
+    -------
+    pd.DataFrame: 增加扫码是否超范围标签("is_remote_point_new")的开瓶扫码df.
+    """
 
     df_scanning_locations_with_new_remote_label = (
         df_scanning_locations.copy().reset_index(drop=True)
     )
     df_scanning_locations_with_new_remote_label["is_remote_point_new"] = -100
-    # -100: 未处理；-2： overall; -1: noise;
     # 0：本地；1：异地；
 
     for i in range(len(df_scanning_locations_with_new_remote_label)):
@@ -234,15 +311,18 @@ def verify_points_within_scope(df_scanning_locations, df_scope):
         # 红包扫码表格式 -> 经营范围表格式
         # ['广东省', '东莞市', '[]', '东坑镇'] -> ['广东省', '东莞市', '东坑镇', '-1']
         # 红包扫码表 df_total 中 的特殊符号是 '[]' 字符串！！！！
-        if address_list[1] == '东莞市' and address_list[2] == '[]':
+        if address_list[1] == "东莞市" and address_list[2] == "[]":
             address_list[2] = address_list[3]
             address_list[3] = "-1"
 
         flag = True
-        for j in range(len(df_scope)):
+        df_copy_to_use = df_scope.copy()
+        for j in range(len(df_copy_to_use)):
             # 新增
-            df_scope = df_scope[["PROVINCE", "CITY", "DISTRICT", "STREET"]]
-            scope_list = df_scope.loc[j, :].values.flatten().tolist()
+            df_copy_to_use = df_copy_to_use.loc[
+                :, ["PROVINCE", "CITY", "DISTRICT", "STREET"]
+            ]
+            scope_list = df_copy_to_use.loc[j, :].values.flatten().tolist()
             if is_belong_to(address_list, scope_list):
                 flag = False
                 break
@@ -259,35 +339,90 @@ def verify_points_within_scope(df_scanning_locations, df_scope):
     return df_scanning_locations_with_new_remote_label
 
 
-def find_remote_clusters_for_dealers(
-    df_cleaned,
-    dealer_id,
-    product_group_id,
-    start_date_str,
-    end_date_str,
-    radius,
-    min_samples,
-    config_file_path,
-    dealer_scope_dict_path,
-):
+def clustering_and_verify_remote_for_dealer(
+    df_cleaned: pd.DataFrame,
+    dealer_id: str,
+    product_group_id: str,
+    start_date_str: str,
+    end_date_str: str,
+    radius: float,
+    min_samples: int,
+    config_file_path: str,
+    dealer_scope_dict_path: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
     """
-    df_centroids -
+    为单个经销商的扫码聚簇, 生成簇维度df, 分别判断扫码点和簇心是否异地。同时增加许多额外指标, 返回集成后的开瓶扫码维度df和簇维度df, 以及该经销商品项范围是否收录flag。
+
+    Parameters
+    ----------
+    df_cleaned: pd.DataFrame
+        经过清洗后的包含扫码记录数据的数据帧。
+
+    dealer_id: str
+        给定的经销商编码。
+
+    product_group_id: str
+        给定的产品品项编码。
+
+    start_date_str: str
+        所选时间段的第一天。格式为"%Y-%m-%d"，例如"2024-12-01".
+
+    end_date_str: str
+        所选时间段的最后一天。格式为"%Y-%m-%d"，例如"2024-12-31".
+
+    radius: float
+        模型所用基于经纬度的DBSCAN聚类算法的 半径大小(邻域距离阈值)。在模型中可以粗略的理解为聚簇时的半径大小(地球球面距离, 如4km)。
+
+    min_samples: int
+        模型所用基于经纬度的DBSCAN聚类算法的 成簇最少样本数(邻域中数据点个数的最小个数)。在模型中可以粗略地理解为聚簇时邻域内的最少开瓶扫码数(如6瓶)。
+
+    config_file_path: str
+        配置文件的路径，包含高德 API 密钥。
+
+    dealer_scope_dict_path: str
+        经销商经营范围字典主数据的路径。
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame, int]
+        pd.DataFrame: df_centroids_with_remote_label 包含簇维度信息的df。
+        pd.DataFrame: df_scanning_locations_with_remote_labels 包含扫码开瓶信息的df.
+        int: 经销商品项经营范围是否收录。
+
+    Descripition
+    ------------
+
     """
     with open(dealer_scope_dict_path, "rb") as f:
         dealer_scope_dict = pickle.load(f)
 
-    df_scanning_locations_with_labels, df_centroids = (
-        get_scanning_locations_and_centroids(
-            df_cleaned,
-            dealer_id,
-            product_group_id,
-            start_date_str,
-            end_date_str,
-            radius,
-            min_samples,
-            config_file_path,
-        )
+    # df_scanning_locations_with_labels, df_centroids = (
+    #     get_scanning_locations_and_centroids(
+    #         df_cleaned,
+    #         dealer_id,
+    #         product_group_id,
+    #         start_date_str,
+    #         end_date_str,
+    #         radius,
+    #         min_samples,
+    #         config_file_path,
+    #     )
+    # )
+
+    df_scanning_locations_with_labels = find_clusters_for_dealer(
+        df_cleaned,
+        dealer_id,
+        product_group_id,
+        start_date_str,
+        end_date_str,
+        radius,
+        min_samples,
     )
+    # if df_scanning_loactions.empty:
+    #     return pd.DataFrame(), pd.DataFrame()
+
+    df_centroids = get_centroids(df_scanning_locations_with_labels, config_file_path)
+    # df_scanning_loactions = df_scanning_loactions.reset_index(drop=True)
 
     # df_valid_scope, is_within_archive = find_valid_regions_monthly_application(
     #     dealer_id, product_group_id, start_date_str, end_date_str, dealer_scope_dict
@@ -297,19 +432,18 @@ def find_remote_clusters_for_dealers(
         dealer_id, product_group_id, start_date_str, dealer_scope_dict
     )
 
-    df_valid_scope_short = df_valid_scope[["PROVINCE", "CITY", "DISTRICT", "STREET"]]
+    # df_valid_scope_short = df_valid_scope[["PROVINCE", "CITY", "DISTRICT", "STREET"]]
     df_centroids_with_remote_label = verify_centroids_within_scope(
-        df_centroids, df_valid_scope_short
+        df_centroids, df_valid_scope
     )
     df_scanning_locations_with_remote_labels = verify_points_within_scope(
-        df_scanning_locations_with_labels, df_valid_scope_short
+        df_scanning_locations_with_labels, df_valid_scope
     )
 
     ##################### 这里增加一个 有效经营范围是否 为空， 用于最后单独取
     df_centroids_with_remote_label["is_dealer_no_valid_scope"] = 0
     if df_valid_scope.empty:
         df_centroids_with_remote_label["is_dealer_no_valid_scope"] = 1
-    
 
     df_centroids_with_remote_label["is_dealer_within_archive"] = is_within_archive
     # df_centroids_with_remote_label['product_group_id'] = product_group_id
@@ -337,17 +471,16 @@ def find_remote_clusters_for_dealers(
         ].copy()
         cluster_mask = df_centroids_with_remote_label["cluster_label"] == label
 
-        if label not in [-2]:
-            # 每个label内的扫码点数
-            df_centroids_with_remote_label.loc[
-                cluster_mask, "scanning_count_within_cluster"
-            ] = len(df_locations_label)
+        # 每个label内的扫码点数
+        df_centroids_with_remote_label.loc[
+            cluster_mask, "scanning_count_within_cluster"
+        ] = len(df_locations_label)
 
-            df_centroids_with_remote_label.loc[
-                cluster_mask, "box_count_within_cluster"
-            ] = df_locations_label["BARCODE_CORNER"].nunique()
+        df_centroids_with_remote_label.loc[cluster_mask, "box_count_within_cluster"] = (
+            df_locations_label["BARCODE_CORNER"].nunique()
+        )
 
-        if label not in [-2, -1]:
+        if label != -1:
             points = list(
                 zip(df_locations_label.LATITUDE, df_locations_label.LONGITUDE)
             )
@@ -399,16 +532,56 @@ def find_remote_clusters_for_dealers(
 
 
 def find_hotspots_for_region(
-    df_cleaned,
-    product_group_id,
-    start_date_str,
-    end_date_str,
-    radius,
-    min_samples,
-    config_file_path,
-    dealer_scope_dict_path,
-):
-    # 增加'dealer_polyline_points_list_total', 'dealer_adcodes' -》 df_total_centroids
+    df_cleaned: pd.DataFrame,
+    product_group_id: str,
+    start_date_str: str,
+    end_date_str: str,
+    radius: float,
+    min_samples: int,
+    config_file_path: str,
+    dealer_scope_dict_path: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[tuple]]:
+    """
+    生成整个大区的开瓶扫码聚簇信息df, 簇维度信息df, 以及大区内该品项未收录的经销商名单。
+
+    Parameters
+    ----------
+    df_cleaned: pd.DataFrame
+        经过清洗后的包含扫码记录数据的数据帧。
+
+    dealer_id: str
+        给定的经销商编码。
+
+    product_group_id: str
+        给定的产品品项编码。
+
+    start_date_str: str
+        所选时间段的第一天。格式为"%Y-%m-%d"，例如"2024-12-01".
+
+    end_date_str: str
+        所选时间段的最后一天。格式为"%Y-%m-%d"，例如"2024-12-31".
+
+    radius: float
+        模型所用基于经纬度的DBSCAN聚类算法的 半径大小(邻域距离阈值)。在模型中可以粗略的理解为聚簇时的半径大小(地球球面距离, 如4km)。
+
+    min_samples: int
+        模型所用基于经纬度的DBSCAN聚类算法的 成簇最少样本数(邻域中数据点个数的最小个数)。在模型中可以粗略地理解为聚簇时邻域内的最少开瓶扫码数(如6瓶)。
+
+    config_file_path: str
+        配置文件的路径，包含高德 API 密钥。
+
+    dealer_scope_dict_path: str
+        经销商经营范围字典主数据的路径。
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame, list[tuple]]
+        pd.DataFrame: df_centroids_with_remote_label 包含簇维度信息的df。
+        pd.DataFrame: df_scanning_locations_with_remote_labels 包含扫码开瓶信息的df.
+        list[tuple[str, str]]: 该大区经销商品项未收录的集合。("dealer_id", "product_group_id")
+    """
+
+    # 增加'dealer_polyline_points_list_total', 'dealer_adcodes' -> df_total_centroids
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     ids_within_region = df_cleaned[
@@ -428,7 +601,7 @@ def find_hotspots_for_region(
             df_centroids_with_remote_label,
             df_scanning_locations_with_remote_labels,
             is_within_archive,
-        ) = find_remote_clusters_for_dealers(
+        ) = clustering_and_verify_remote_for_dealer(
             df_cleaned,
             dealer_id,
             product_group_id,
@@ -445,8 +618,10 @@ def find_hotspots_for_region(
             df_centroids_with_remote_label["dealer_id"] = dealer_id
             df_valid_scope = df_centroids_with_remote_label.loc[0, "dealer_valid_scope"]
             # print(dealer_id)
-            polyline_points_list_total, adcodes = get_polylines_adcodes_for_valid_regions(
-                df_valid_scope, config_file_path
+            polyline_points_list_total, adcodes = (
+                get_polylines_adcodes_for_valid_regions(
+                    df_valid_scope, config_file_path
+                )
             )
 
             df_centroids_with_remote_label["dealer_polyline_points_list_total"] = (
@@ -590,21 +765,21 @@ def calculate_distances_to_local_centroids_for_centroids(
     return df_total_centroids
 
 
-def find_closest_point_geodesic(fixed_point, coordinates):
-    min_distance = float('inf')
-    # min_distance = float("99999")
-    closest_point = None
+# def find_closest_point_geodesic(fixed_point, coordinates):
+#     min_distance = float('inf')
+#     # min_distance = float("99999")
+#     closest_point = None
 
-    for coord in coordinates:
-        coordinate = (coord[0], coord[1])
-        distance = geodesic(
-            fixed_point, coordinate
-        ).kilometers  # Distance in kilometers
-        if distance < min_distance:
-            min_distance = distance
-            closest_point = coord
+#     for coord in coordinates:
+#         coordinate = (coord[0], coord[1])
+#         distance = geodesic(
+#             fixed_point, coordinate
+#         ).kilometers  # Distance in kilometers
+#         if distance < min_distance:
+#             min_distance = distance
+#             closest_point = coord
 
-    return closest_point, min_distance
+#     return closest_point, min_distance
 
 
 def calculate_min_distance_to_border(df_total_centroids):
@@ -715,7 +890,7 @@ def find_hotspots_continue_for_dense_main(
     df_total_centroids_sparse.loc[~large_hotspots_mask, "is_large_hotspot"] = 0
 
     df_large_hotspots = df_total_centroids_sparse.loc[large_hotspots_mask, :]
-    
+
     df_large_hotspots_label = df_large_hotspots.loc[:, ["dealer_id", "cluster_label"]]
     df_large_hotspots_label = df_large_hotspots_label.reset_index(drop=True).rename(
         columns={"dealer_id": "BELONG_DEALER_NO"}

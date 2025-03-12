@@ -1,4 +1,4 @@
-from IPython.display import display, Markdown
+from IPython.display import display
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from tabulate import tabulate
@@ -7,11 +7,9 @@ from .functions import get_month_start_end
 import folium
 import geopandas as gpd
 import glob
-import numpy as np
 import os
 import pandas as pd
 import pickle
-
 
 
 def plot_clusters_with_folium(
@@ -124,20 +122,12 @@ def plot_clusters_with_folium(
     return m
 
 
-# def display_forth_title(title):
-#     display(Markdown(f"#### {title}"))
-
-# def display_fifth_title(title):
-#     display(Markdown(f"##### {title}"))
-
-
-def show_region_short_results_main(
+def show_region_short_results(
     df_dealer_results,
     df_total_scanning_locations,
     start_date_str,
     end_date_str,
     dealer_region_name,
-    print_title=True,
 ):
 
     df_suspicious_dealers = (
@@ -146,7 +136,6 @@ def show_region_short_results_main(
         .reset_index(drop=True)
     )
 
-    # product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
     product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
 
     # Output 1
@@ -155,11 +144,8 @@ def show_region_short_results_main(
         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
         + "-" * 30
     )
-    if print_title:
-        print(title_1_str)
-        # display_forth_title(
-        #     title_1_str
-        # )
+    # if print_title:
+    #     print(title_1_str)
     print()
 
     # Output2
@@ -176,23 +162,13 @@ def show_region_short_results_main(
         },
         index=[0],
     )
-    df_region_dealer_statistics_styled = (
-        df_region_dealer_statistics.style.set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]
-        ).hide(axis="index")
-    )
     output_2 = df_region_dealer_statistics.copy()
     print(tabulate(output_2, headers="keys", tablefmt="pretty", showindex=False))
-    # display(df_region_dealer_statistics_styled)
     print()
 
     # Output3
     title_3_str = "可疑经销商汇总表"
     print(title_3_str)
-    # display_fifth_title(title_3_str)
     suspicious_dealers_overall_cols = [
         "BELONG_DEALER_NO",
         "BELONG_DEALER_NAME",
@@ -203,6 +179,7 @@ def show_region_short_results_main(
         "dealer_suspicious_points_ratio",
         "dealer_remote_ratio",
         "dealer_total_scanning_count",
+        # "border_scanning_ratio"
     ]
     rename_dict = {
         "BELONG_DEALER_NO": "经销商编码",
@@ -214,54 +191,39 @@ def show_region_short_results_main(
         "dealer_suspicious_points_ratio": "扫码可疑率",
         "dealer_remote_ratio": "扫码异地率",
         "dealer_total_scanning_count": "总扫码量",
+        # "border_scanning_ratio": "近边界扫码率"
     }
-    df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
-        :, suspicious_dealers_overall_cols
-    ]
-    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.sort_values(
+
+    df_suspicious_dealers_to_show = df_suspicious_dealers.sort_values(
         by=["is_dealer_no_valid_scope", "BELONG_DEALER_NO"], ascending=[True, True]
     ).reset_index(drop=True)
-    
-    df_suspicious_dealers_to_show["is_dealer_no_valid_scope"] = df_suspicious_dealers_to_show["is_dealer_no_valid_scope"].map(
-        {1: "是", 0: "否"}
-    )
-    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.rename(
-        columns=rename_dict
+
+    df_suspicious_dealers_to_show["is_dealer_no_valid_scope"] = (
+        df_suspicious_dealers_to_show["is_dealer_no_valid_scope"].map(
+            {1: "是", 0: "否"}
+        )
     )
 
-    df_suspicious_dealers_to_show_styled = (
-        df_suspicious_dealers_to_show.style.set_table_styles(
-            [
-                {
-                    "selector": "th",
-                    "props": [("text-align", "center")],
-                },  # Header centered
-                {
-                    "selector": "td",
-                    "props": [("text-align", "center")],
-                },  # Data centered
-            ]
-        )
-        .hide(axis="index")
-        .format(
-            {
-                "扫码可疑率": "{:.3f}",  # Two decimal places
-                "扫码异地率": "{:.3f}",  # Two decimal places
-            }
-        )
+    # 这里可以增加计算边界开瓶率？？？？？
+    # df_suspicious_dealers_to_show = add_border_scanning_ratio_to_df_suspicious_dealers(
+    #     df_suspicious_dealers_to_show, df_total_scanning_locations
+    # )
+    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.loc[
+        :, suspicious_dealers_overall_cols
+    ]
+    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.rename(
+        columns=rename_dict
     )
     output_3 = df_suspicious_dealers_to_show.copy()
     output_3[["扫码可疑率", "扫码异地率"]] = output_3[
         ["扫码可疑率", "扫码异地率"]
     ].round(3)
     print(tabulate(output_3, headers="keys", tablefmt="pretty", showindex=False))
-    # display(df_suspicious_dealers_to_show_styled)
     print()
 
     # Output 4
     title_4_str = "经营范围未归档经销商"
     print(title_4_str)
-    # display_fifth_title(title_4_str)
     unarchive_dealers_overall_cols = [
         "BELONG_DEALER_NO",
         "BELONG_DEALER_NAME",
@@ -277,21 +239,9 @@ def show_region_short_results_main(
     df_unarchive_dealers_to_show = df_unarchive_dealers_to_show.rename(
         columns=rename_dict
     )
-    df_unarchive_dealers_to_show_styled = (
-        df_unarchive_dealers_to_show.style.set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]
-        ).hide(axis="index")
-    )
     output_4 = df_unarchive_dealers_to_show.copy()
     print(tabulate(output_4, headers="keys", tablefmt="pretty", showindex=False))
-    # display(df_unarchive_dealers_to_show_styled)
     print()
-
-
-
 
     print("*" * 100)
     return (
@@ -305,13 +255,12 @@ def show_region_short_results_main(
     )
 
 
-def show_region_short_results_special_main(
+def show_region_short_results_special(
     df_dealer_results,
     df_total_scanning_locations,
     start_date_str,
     end_date_str,
     dealer_region_name,
-    print_title=True,
 ):
 
     df_suspicious_dealers = (
@@ -319,26 +268,21 @@ def show_region_short_results_special_main(
         .sort_values(by="BELONG_DEALER_NO")
         .reset_index(drop=True)
     )
-
-    # product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
     product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
+
     # Output 1
     title_1_str = (
         "-" * 30
         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果（简略）如下"
         + "-" * 30
     )
-    if print_title:
-        print(title_1_str)
-        # display_forth_title(
-        #     title_1_str
-        # )
-        print()
+    # if print_title:
+    #     print(title_1_str)
+    print()
 
     # Output_2
     title_2_str = "经销商数量统计"
     print(title_2_str)
-    # display_fifth_title(title_2_str)
     df_region_dealer_statistics = pd.DataFrame(
         {
             "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
@@ -350,23 +294,13 @@ def show_region_short_results_special_main(
         },
         index=[0],
     )
-    df_region_dealer_statistics_styled = (
-        df_region_dealer_statistics.style.set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]
-        ).hide(axis="index")
-    )
     output_2 = df_region_dealer_statistics.copy()
     print(tabulate(output_2, headers="keys", tablefmt="pretty", showindex=False))
-    # display(df_region_dealer_statistics_styled)
     print()
 
     # Output_3
     title_3_str = "可疑经销商汇总表"
     print(title_3_str)
-    # display_fifth_title(title_3_str)
     suspicious_dealers_overall_cols = [
         "BELONG_DEALER_NO",
         "BELONG_DEALER_NAME",
@@ -377,6 +311,7 @@ def show_region_short_results_special_main(
         "dealer_suspicious_points_ratio_final",
         "dealer_remote_ratio",
         "dealer_total_scanning_count",
+        # "border_scanning_ratio"
     ]
     rename_dict = {
         "BELONG_DEALER_NO": "经销商编码",
@@ -388,52 +323,36 @@ def show_region_short_results_special_main(
         "dealer_suspicious_points_ratio_final": "扫码可疑率",
         "dealer_remote_ratio": "扫码异地率",
         "dealer_total_scanning_count": "总扫码量",
+        # "border_scanning_ratio": "近边界扫码率"
     }
-
-    df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
-        :, suspicious_dealers_overall_cols
-    ]
-    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.sort_values(
+    df_suspicious_dealers_to_show = df_suspicious_dealers.sort_values(
         by=["is_dealer_no_valid_scope", "BELONG_DEALER_NO"], ascending=[True, True]
     ).reset_index(drop=True)
-    df_suspicious_dealers_to_show["is_dealer_no_valid_scope"] = df_suspicious_dealers_to_show["is_dealer_no_valid_scope"].map(
-        {1: "是", 0: "否"}
+    df_suspicious_dealers_to_show["is_dealer_no_valid_scope"] = (
+        df_suspicious_dealers_to_show["is_dealer_no_valid_scope"].map(
+            {1: "是", 0: "否"}
+        )
     )
-    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.rename(columns=rename_dict)
-    
-    df_suspicious_dealers_to_show_styled = (
-        df_suspicious_dealers_to_show.style.set_table_styles(
-            [
-                {
-                    "selector": "th",
-                    "props": [("text-align", "center")],
-                },  # Header centered
-                {
-                    "selector": "td",
-                    "props": [("text-align", "center")],
-                },  # Data centered
-            ]
-        )
-        .hide(axis="index")
-        .format(
-            {
-                "扫码可疑率": "{:.3f}",  # Two decimal places
-                "扫码异地率": "{:.3f}",  # Two decimal places
-            }
-        )
+
+    # df_suspicious_dealers_to_show = add_border_scanning_ratio_to_df_suspicious_dealers(
+    #     df_suspicious_dealers_to_show, df_total_scanning_locations
+    # )
+    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.loc[
+        :, suspicious_dealers_overall_cols
+    ]
+    df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.rename(
+        columns=rename_dict
     )
     output_3 = df_suspicious_dealers_to_show.copy()
     output_3[["扫码可疑率", "扫码异地率"]] = output_3[
         ["扫码可疑率", "扫码异地率"]
     ].round(3)
     print(tabulate(output_3, headers="keys", tablefmt="pretty", showindex=False))
-    # display(df_suspicious_dealers_to_show_styled)
     print()
 
     # Output 4
     title_4_str = "经营范围未归档经销商"
     print(title_4_str)
-    # display_fifth_title(title_4_str)
     unarchive_dealers_overall_cols = [
         "BELONG_DEALER_NO",
         "BELONG_DEALER_NAME",
@@ -449,17 +368,8 @@ def show_region_short_results_special_main(
     df_unarchive_dealers_to_show = df_unarchive_dealers_to_show.rename(
         columns=rename_dict
     )
-    df_unarchive_dealers_to_show_styled = (
-        df_unarchive_dealers_to_show.style.set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-            ]
-        ).hide(axis="index")
-    )
     output_4 = df_unarchive_dealers_to_show.copy()
     print(tabulate(output_4, headers="keys", tablefmt="pretty", showindex=False))
-    # display(df_unarchive_dealers_to_show_styled)
     print()
     print("*" * 100)
 
@@ -615,9 +525,11 @@ def show_dealer_results_main(
     title_3_str = "--- 范围内经销商异地信息 ---"
     print(title_3_str)
     df_dealer_info_to_show = df_dealer_dealer_results.loc[:, dealer_info_cols]
-    df_dealer_info_to_show[["is_dealer_suspicious", "is_dealer_no_valid_scope"]] = df_dealer_info_to_show[[
-        "is_dealer_suspicious", "is_dealer_no_valid_scope"]].replace(
-            {1: "是", 0: "否"})
+    df_dealer_info_to_show[["is_dealer_suspicious", "is_dealer_no_valid_scope"]] = (
+        df_dealer_info_to_show[
+            ["is_dealer_suspicious", "is_dealer_no_valid_scope"]
+        ].replace({1: "是", 0: "否"})
+    )
     df_dealer_info_to_show[
         [
             "dealer_suspicious_points_ratio",
@@ -703,7 +615,6 @@ def show_dealer_results_main(
     df_city_count["OPEN_PROVINCE"] = df_city_count["OPEN_PROVINCE"].apply(
         lambda x: x[:2] if x in ["天津市", "北京市", "上海市", "重庆市"] else x
     )
-
     df_valid_scope = df_dealer_dealer_results.loc[0, "dealer_valid_scope"]
     df_count_merged = pd.DataFrame()
 
@@ -901,8 +812,8 @@ def show_dealer_results_special_main(
     print()
 
     # Output_2
-    title_str_2 = "---经营范围---"
-    print(title_str_2)
+    title_2_str = "---经营范围---"
+    print(title_2_str)
     with open(dealer_scope_dict_path, "rb") as f:
         dealer_scope_dict = pickle.load(f)
 
@@ -914,7 +825,7 @@ def show_dealer_results_special_main(
         return
     df_business_scope_to_show = (
         df_business_scope.copy()
-    )  # 不知道为什么会有bug 会更改到字典里的数据类型,因此采用深拷贝
+    )  # 不知道为什么会有bug:会更改到字典里的数据类型,因此采用深拷贝
     df_business_scope_to_show["EFFECTIVE_DATE"] = df_business_scope_to_show[
         "EFFECTIVE_DATE"
     ].dt.strftime("%Y-%m-%d")
@@ -938,12 +849,16 @@ def show_dealer_results_special_main(
     print()
 
     # Output_3
-    title_str_3 = "---范围内经销商异地信息---"
-    print(title_str_3)
+    title_3_str = "---范围内经销商异地信息---"
+    print(title_3_str)
     df_dealer_info_to_show = df_dealer_dealer_results.loc[:, dealer_info_cols]
-    df_dealer_info_to_show[["is_dealer_suspicious_final", "is_dealer_no_valid_scope"]] = df_dealer_info_to_show[[
-        "is_dealer_suspicious_final", "is_dealer_no_valid_scope"
-        ]].replace({1: "是", 0: "否"})
+    df_dealer_info_to_show[
+        ["is_dealer_suspicious_final", "is_dealer_no_valid_scope"]
+    ] = df_dealer_info_to_show[
+        ["is_dealer_suspicious_final", "is_dealer_no_valid_scope"]
+    ].replace(
+        {1: "是", 0: "否"}
+    )
     df_dealer_info_to_show[
         [
             "dealer_suspicious_points_ratio_final",
@@ -1082,15 +997,7 @@ def show_dealer_results_special_main(
         df_dealer_info_dense_to_show = df_dealer_info_dense_to_show.rename(
             columns=rename_dict
         )
-        # output_5 = df_dealer_info_dense_to_show.copy()
-        # print(
-        #     tabulate(
-        #         df_dealer_info_dense_to_show,
-        #         headers="keys",
-        #         tablefmt="pretty",
-        #         showindex=False,
-        #     )
-        # )
+
     else:
         cols = [
             "dealer_hotspot_count_dense",
@@ -1099,9 +1006,9 @@ def show_dealer_results_special_main(
             "dealer_suspicious_hotspot_ratio_dense",
             "dealer_remote_hotspot_ratio_dense",
         ]
-        df_dealer_info_dense_to_show = pd.DataFrame(
-            0, index=[0], columns=cols
-        ).rename(columns=rename_dict)
+        df_dealer_info_dense_to_show = pd.DataFrame(0, index=[0], columns=cols).rename(
+            columns=rename_dict
+        )
 
     output_5 = df_dealer_info_dense_to_show.copy()
     print(title_5_str)
@@ -1305,9 +1212,9 @@ def show_dealer_results_special_main(
     print()
     return (
         title_1_str,
-        title_str_2,
+        title_2_str,
         output_2,
-        title_str_3,
+        title_3_str,
         output_3,
         title_4_str,
         output_4,
@@ -1326,6 +1233,186 @@ def show_dealer_results_special_main(
     )
 
 
+def generate_single_dealer_sheet(
+    results_files_folder_path,
+    excel_file_name_str,
+    map_file_name_str,
+    sheet_name,
+    title_1_str,
+    title_2_str,
+    output_2,
+    title_3_str,
+    output_3,
+    title_4_str,
+    output_4,
+    title_5_str,
+    output_5,
+    title_6_str,
+    output_6,
+    mode,
+    **if_sheet_exists,
+):
+
+    excel_results_path = os.path.join(
+        results_files_folder_path,
+        f"{excel_file_name_str}.xlsx",
+    )
+
+    with pd.ExcelWriter(
+        excel_results_path, engine="openpyxl", mode=mode, **if_sheet_exists
+    ) as writer:
+        if mode == "w":
+            sheet1 = writer.book.create_sheet(sheet_name)
+        if mode == "a":
+            sheet1 = writer.book[sheet_name]
+        blue_fill = PatternFill(
+            start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+        )  # 浅蓝色
+        yellow_fill = PatternFill(
+            start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+        )
+        soft_red_fill = PatternFill(
+            start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+        )
+        # 写入标题 1
+        title_1_start_row = 2
+        title_1_start_col = 1
+        cell = sheet1.cell(
+            row=title_1_start_row, column=title_1_start_col, value=title_1_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=14)
+        # 判断是否因 无有效经营范围 引发的可疑
+        if output_3.loc[0, "无<有效>经营范围"] == "否":
+            cell.fill = soft_red_fill
+        else:
+            cell.fill = yellow_fill
+        sheet1.merge_cells(
+            start_row=title_1_start_row,
+            end_row=title_1_start_row,
+            start_column=title_1_start_col,
+            end_column=title_1_start_col + 10,
+        )
+
+        # 写入标题 2 和 output_2
+        title_2_start_row = 4
+        title_2_start_col = 1
+        output_2_start_row = title_2_start_row
+        cell = sheet1.cell(
+            row=title_2_start_row, column=title_2_start_col, value=title_2_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_2_start_row,
+            end_row=title_2_start_row,
+            start_column=title_2_start_col,
+            end_column=title_2_start_col + (output_2.shape[1]) - 1,
+        )
+        output_2.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_2_start_row
+        )
+
+        title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+        title_3_start_col = 1
+        output_3_start_row = title_3_start_row
+        cell = sheet1.cell(
+            row=title_3_start_row, column=title_3_start_col, value=title_3_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_3_start_row,
+            end_row=title_3_start_row,
+            start_column=title_3_start_col,
+            end_column=title_3_start_col + output_3.shape[1] - 1,
+        )
+        output_3.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_3_start_row
+        )
+
+        # 4 具体簇的信息
+        title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+        title_4_start_col = 1
+        output_4_start_row = title_4_start_row
+        cell = sheet1.cell(
+            row=title_4_start_row, column=title_4_start_col, value=title_4_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = blue_fill
+        cell.font = Font(bold=True, size=12)
+        sheet1.merge_cells(
+            start_row=title_4_start_row,
+            end_row=title_4_start_row,
+            start_column=title_4_start_col,
+            end_column=title_4_start_col + output_4.shape[1] - 1,
+        )
+        # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+        output_4[["距本地热点总质心", "距本地点总质心"]] = output_4[
+            ["距本地热点总质心", "距本地点总质心"]
+        ].fillna("na")
+        output_4.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_4_start_row
+        )
+        df_suspicious = output_4.loc[output_4["高度可疑"] == "是", :]
+        for row_no in range(
+            output_4_start_row + 2,
+            output_4_start_row + df_suspicious.shape[0] + 2,
+        ):
+            for col_no in range(
+                title_4_start_col, title_4_start_col + df_suspicious.shape[1]
+            ):
+                cell = sheet1.cell(row=row_no, column=col_no)
+                cell.fill = soft_red_fill
+
+        # 5
+        title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
+        title_5_start_col = 1
+        output_5_start_row = title_5_start_row
+        cell = sheet1.cell(
+            row=title_5_start_row, column=title_5_start_col, value=title_5_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_5_start_row,
+            end_row=title_5_start_row,
+            start_column=title_5_start_col,
+            end_column=title_5_start_col + output_5.shape[1] - 1,
+        )
+        output_5.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_5_start_row
+        )
+
+        # 6 output是map
+        map_results_path = os.path.join(
+            results_files_folder_path,
+            f"{map_file_name_str}.html",
+        )
+        output_6.save(map_results_path)
+
+    # 打开已保存的 Excel 文件，进行进一步样式设置
+    wb = load_workbook(excel_results_path)
+    ws = wb[sheet_name]
+
+    # 设置列宽
+    for i in range(14):
+        ascii_value = ord("A")
+        col_letter = chr(ascii_value + i)
+        ws.column_dimensions[col_letter].width = 20
+    # ws.column_dimensions['A'].width = 30
+    # ws.column_dimensions['B'].width = 40
+    # ws.column_dimensions['C'].width = 30
+    # 遍历每个单元格并设置居中对齐
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+    wb.save(excel_results_path)
+
+
 def show_results_main(
     df_dealer_results,
     df_total_scanning_locations,
@@ -1335,15 +1422,13 @@ def show_results_main(
     dealer_region_name,
     product_group_id,
     year_month_str,
-    save_results=False,
+    save_results=True,
 ):
     start_date_str, end_date_str = get_month_start_end(year_month_str)
 
     results_files_folder_path = (
         f"results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
     )
-    # if os.path.exists(results_files_folder_path):
-    #     shutil.rmtree(results_files_folder_path)
     os.makedirs(results_files_folder_path, exist_ok=True)
 
     rename_dict = {
@@ -1372,48 +1457,24 @@ def show_results_main(
     ).reset_index(drop=True)
 
     product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
-    # product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
-
     main_title_str_1 = (
         "-" * 35
         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
         + "-" * 35
     )
     print(main_title_str_1)
-    # display_forth_title(
-    #     main_title_str_1
-    # )
     print()
 
-    # print("---模型参数---")
-    # print(tabulate(df_model_parameters, headers='keys', tablefmt='pretty', showindex=False))
     main_title_str_2 = "--- 模型参数 ---"
     print(main_title_str_2)
-    # display_fifth_title(main_title_str_2)
-    df_model_parameters_styled = (
-        df_model_parameters.style.format(
-            {
-                "热点扫码量占比阈值": "{:.1f}",  # 浮动数值保留一位小数
-                "热点离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
-            }
-        )
-        .set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},
-            ]  # 内容居中
-        )
-        .hide(axis="index")
-    )
     print(
         tabulate(
             df_model_parameters, headers="keys", tablefmt="pretty", showindex=False
         )
     )
-    # display(df_model_parameters_styled)
     print()
 
-    # show_region_short_results_main-----------------------
+    # show_region_short_results-----------------------
     (
         title_1_str,
         title_2_str,
@@ -1422,33 +1483,33 @@ def show_results_main(
         output_3,
         title_4_str,
         output_4,
-    ) = show_region_short_results_main(
+    ) = show_region_short_results(
         df_dealer_results,
         df_total_scanning_locations,
         start_date_str,
         end_date_str,
         dealer_region_name,
-        print_title=False,
     )
 
     # save excel part
     if save_results:
-
         if os.path.exists(results_files_folder_path):
             # Use glob to find all files in the directory
-            files = glob.glob(os.path.join(results_files_folder_path, '*'))  # This matches all files and subdirectories
-            
+            files = glob.glob(
+                os.path.join(results_files_folder_path, "*")
+            )  # This matches all files and subdirectories
+
             for file in files:
                 # Check if it's a file (not a subdirectory)
                 if os.path.isfile(file):
                     os.remove(file)
-
+        file_name_str = f"{dealer_region_name}-{year_month_str}-{product_group_name}"
         excel_results_path = os.path.join(
             results_files_folder_path,
-            f"{dealer_region_name}-{year_month_str}-{product_group_name}.xlsx",
+            f"{file_name_str}.xlsx",
         )
 
-        # 输出普通大区汇总excel
+        # 输出大区汇总excel
         with pd.ExcelWriter(excel_results_path, engine="openpyxl") as writer:
             # 创建工作表
 
@@ -1556,7 +1617,6 @@ def show_results_main(
                 ):
                     cell = sheet1.cell(row=row_no, column=col_no)
                     cell.fill = yellow_fill
-            
 
             title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
             title_4_start_col = 1
@@ -1634,159 +1694,383 @@ def show_results_main(
         )
 
         if save_results:
-            with pd.ExcelWriter(
-                excel_results_path,
-                engine="openpyxl",
+            excel_file_name_str = file_name_str
+            map_file_name_str = f"{id}-{year_month_str}-品项：{product_group_id}"
+            generate_single_dealer_sheet(
+                results_files_folder_path,
+                excel_file_name_str,
+                map_file_name_str,
+                id,
+                title_1_str,
+                title_2_str,
+                output_2,
+                title_3_str,
+                output_3,
+                title_4_str,
+                output_4,
+                title_5_str,
+                output_5,
+                title_6_str,
+                output_6,
                 mode="a",
                 if_sheet_exists="overlay",
-            ) as writer:
-                # 创建工作表
-                # sheet1 = writer.book.create_sheet(id)
-                sheet1 = writer.book[id]
-                blue_fill = PatternFill(
-                    start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
-                )  # 浅蓝色
-                yellow_fill = PatternFill(
-                    start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
-                )
-                soft_red_fill = PatternFill(
-                    start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
-                )
-                # 写入标题 1
-                title_1_start_row = 2
-                title_1_start_col = 1
-                cell = sheet1.cell(
-                    row=title_1_start_row, column=title_1_start_col, value=title_1_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=14)
-                # 判断是否因 无有效经营范围 引发的可疑
-                if output_3.loc[0, '无<有效>经营范围'] == '否':
-                    cell.fill = soft_red_fill
-                else:
-                    cell.fill = yellow_fill
-                sheet1.merge_cells(
-                    start_row=title_1_start_row,
-                    end_row=title_1_start_row,
-                    start_column=title_1_start_col,
-                    end_column=title_1_start_col + 10,
-                )
+            )
 
-                # 写入标题 2 和 output_2
-                title_2_start_row = 4
-                title_2_start_col = 1
-                output_2_start_row = title_2_start_row
-                cell = sheet1.cell(
-                    row=title_2_start_row, column=title_2_start_col, value=title_2_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_2_start_row,
-                    end_row=title_2_start_row,
-                    start_column=title_2_start_col,
-                    end_column=title_2_start_col + (output_2.shape[1]) - 1,
-                )
-                output_2.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_2_start_row
-                )
 
-                title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
-                title_3_start_col = 1
-                output_3_start_row = title_3_start_row
-                cell = sheet1.cell(
-                    row=title_3_start_row, column=title_3_start_col, value=title_3_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_3_start_row,
-                    end_row=title_3_start_row,
-                    start_column=title_3_start_col,
-                    end_column=title_3_start_col + output_3.shape[1] - 1,
-                )
-                output_3.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_3_start_row
-                )
+def generate_all_dealers_results_main(
+    df_dealer_results,
+    df_total_scanning_locations,
+    df_total_centroids,
+    dealer_scope_dict_path,
+    dealer_region_name,
+    product_group_id,
+    year_month_str,
+    save_results=True,
+):
 
-                # 4 具体簇的信息
-                title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
-                title_4_start_col = 1
-                output_4_start_row = title_4_start_row
-                cell = sheet1.cell(
-                    row=title_4_start_row, column=title_4_start_col, value=title_4_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.fill = blue_fill
-                cell.font = Font(bold=True, size=12)
-                sheet1.merge_cells(
-                    start_row=title_4_start_row,
-                    end_row=title_4_start_row,
-                    start_column=title_4_start_col,
-                    end_column=title_4_start_col + output_4.shape[1] - 1,
-                )
-                # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
-                output_4[['距本地热点总质心', '距本地点总质心']] = output_4[['距本地热点总质心', '距本地点总质心']].fillna('na')
-                output_4.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_4_start_row
-                )
-                df_suspicious = output_4.loc[output_4["高度可疑"] == "是", :]
-                for row_no in range(
-                    output_4_start_row + 2,
-                    output_4_start_row + df_suspicious.shape[0] + 2,
-                ):
-                    for col_no in range(
-                        title_4_start_col, title_4_start_col + df_suspicious.shape[1]
-                    ):
-                        cell = sheet1.cell(row=row_no, column=col_no)
-                        cell.fill = soft_red_fill
+    dealer_results_files_folder_path = (
+        f"dealer_results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
+    )
+    os.makedirs(dealer_results_files_folder_path, exist_ok=True)
+    if save_results:
+        # Use glob to find all files in the directory
+        files = glob.glob(
+            os.path.join(dealer_results_files_folder_path, "*")
+        )  # This matches all files and subdirectories
+        for file in files:
+            # Check if it's a file (not a subdirectory)
+            if os.path.isfile(file):
+                os.remove(file)
 
-                # 5
-                title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
-                title_5_start_col = 1
-                output_5_start_row = title_5_start_row
-                cell = sheet1.cell(
-                    row=title_5_start_row, column=title_5_start_col, value=title_5_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_5_start_row,
-                    end_row=title_5_start_row,
-                    start_column=title_5_start_col,
-                    end_column=title_5_start_col + output_5.shape[1] - 1,
-                )
-                output_5.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_5_start_row
-                )
+    df_dealer_results_within_archive = (
+        df_dealer_results.loc[df_dealer_results["is_dealer_within_archive"] == 1,]
+        .sort_values(by="BELONG_DEALER_NO")
+        .reset_index(drop=True)
+    )
+    ids_dealers = list(df_dealer_results_within_archive.BELONG_DEALER_NO)
 
-                # 6 output是map
-                map_results_path = os.path.join(
-                    results_files_folder_path,
-                    f"{id}-{year_month_str}-{product_group_name}.html",
-                )
-                output_6.save(map_results_path)
+    for id in ids_dealers:
+        df_dealer_dealer_results = df_dealer_results.loc[
+            df_dealer_results.BELONG_DEALER_NO == id, :
+        ].reset_index(drop=True)
+        df_dealer_total_scanning_locations = df_total_scanning_locations.loc[
+            df_total_scanning_locations.BELONG_DEALER_NO == id, :
+        ].reset_index(drop=True)
+        df_dealer_total_centroids = df_total_centroids.loc[
+            df_total_centroids.dealer_id == id, :
+        ].reset_index(drop=True)
 
-            # 打开已保存的 Excel 文件，进行进一步样式设置
-            wb = load_workbook(excel_results_path)
-            ws = wb[id]
+        (
+            title_1_str,
+            title_2_str,
+            output_2,
+            title_3_str,
+            output_3,
+            title_4_str,
+            output_4,
+            title_5_str,
+            output_5,
+            title_6_str,
+            output_6,
+        ) = show_dealer_results_main(
+            df_dealer_dealer_results,
+            df_dealer_total_scanning_locations,
+            df_dealer_total_centroids,
+            dealer_scope_dict_path,
+        )
 
-            # 设置列宽
-            for i in range(14):
-                ascii_value = ord("A")
-                col_letter = chr(ascii_value + i)
-                ws.column_dimensions[col_letter].width = 20
-            # ws.column_dimensions['A'].width = 30
-            # ws.column_dimensions['B'].width = 40
-            # ws.column_dimensions['C'].width = 30
-            # 遍历每个单元格并设置居中对齐
-            for row in ws.iter_rows():
-                for cell in row:
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-            wb.save(excel_results_path)
+        if save_results:
+            excel_file_name_str = f"{id}-{year_month_str}-品项：{product_group_id}"
+            map_file_name_str = f"{id}-{year_month_str}-品项：{product_group_id}"
+            generate_single_dealer_sheet(
+                dealer_results_files_folder_path,
+                excel_file_name_str,
+                map_file_name_str,
+                id,
+                title_1_str,
+                title_2_str,
+                output_2,
+                title_3_str,
+                output_3,
+                title_4_str,
+                output_4,
+                title_5_str,
+                output_5,
+                title_6_str,
+                output_6,
+                mode="w",
+            )
+
+
+def generate_single_dealer_sheet_special(
+    results_files_folder_path,
+    excel_file_name_str,
+    map_file_name_str,
+    sheet_name,
+    title_1_str,
+    title_2_str,
+    output_2,
+    title_3_str,
+    output_3,
+    title_4_str,
+    output_4,
+    title_5_str,
+    output_5,
+    title_6_str,
+    output_6,
+    title_7_str,
+    output_7,
+    title_8_str,
+    output_8,  # map1
+    title_9_str,
+    output_9,
+    title_10_str,
+    output_10,  # map2
+    mode,
+    **if_sheet_exists,
+):
+    excel_results_path = os.path.join(
+        results_files_folder_path,
+        f"{excel_file_name_str}.xlsx",
+    )
+    with pd.ExcelWriter(
+        excel_results_path, engine="openpyxl", mode=mode, **if_sheet_exists
+    ) as writer:
+        # 创建or选择工作表
+        if mode == "w":
+            sheet1 = writer.book.create_sheet(sheet_name)
+        if mode == "a":
+            sheet1 = writer.book[sheet_name]
+        blue_fill = PatternFill(
+            start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+        )  # 浅蓝色
+        yellow_fill = PatternFill(
+            start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+        )
+        soft_red_fill = PatternFill(
+            start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+        )
+
+        # 写入标题 1
+        title_1_start_row = 2
+        title_1_start_col = 1
+        cell = sheet1.cell(
+            row=title_1_start_row, column=title_1_start_col, value=title_1_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=14)
+        # 判断是否因 无有效经营范围 引发的可疑
+        if output_3.loc[0, "无<有效>经营范围"] == "否":
+            cell.fill = soft_red_fill
+        else:
+            cell.fill = yellow_fill
+        sheet1.merge_cells(
+            start_row=title_1_start_row,
+            end_row=title_1_start_row,
+            start_column=title_1_start_col,
+            end_column=title_1_start_col + 10,
+        )
+
+        # 经营范围
+        title_2_start_row = 4
+        title_2_start_col = 1
+        output_2_start_row = title_2_start_row
+        cell = sheet1.cell(
+            row=title_2_start_row, column=title_2_start_col, value=title_2_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_2_start_row,
+            end_row=title_2_start_row,
+            start_column=title_2_start_col,
+            end_column=title_2_start_col + (output_2.shape[1]) - 1,
+        )
+        output_2.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_2_start_row
+        )
+
+        # 范围内经销商异地信息
+        title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+        title_3_start_col = 1
+        output_3_start_row = title_3_start_row
+        cell = sheet1.cell(
+            row=title_3_start_row, column=title_3_start_col, value=title_3_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_3_start_row,
+            end_row=title_3_start_row,
+            start_column=title_3_start_col,
+            end_column=title_3_start_col + output_3.shape[1] - 1,
+        )
+        output_3.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_3_start_row
+        )
+
+        # 一级热点信息
+        title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+        title_4_start_col = 1
+        output_4_start_row = title_4_start_row
+        cell = sheet1.cell(
+            row=title_4_start_row, column=title_4_start_col, value=title_4_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_4_start_row,
+            end_row=title_4_start_row,
+            start_column=title_4_start_col,
+            end_column=title_4_start_col + output_4.shape[1] - 1,
+        )
+        output_4.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_4_start_row
+        )
+
+        # 二级热点信息
+        title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
+        title_5_start_col = 1
+        output_5_start_row = title_5_start_row
+        cell = sheet1.cell(
+            row=title_5_start_row, column=title_5_start_col, value=title_5_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_5_start_row,
+            end_row=title_5_start_row,
+            start_column=title_5_start_col,
+            end_column=title_5_start_col + output_5.shape[1] - 1,
+        )
+        output_5.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_5_start_row
+        )
+
+        # 可疑经销商开瓶城市统计表(大于五瓶的城市)
+        title_6_start_row = output_5_start_row + len(output_5) + 1 + 2
+        title_6_start_col = 1
+        output_6_start_row = title_6_start_row
+        cell = sheet1.cell(
+            row=title_6_start_row, column=title_6_start_col, value=title_6_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.font = Font(bold=True, size=12)
+        cell.fill = blue_fill
+        sheet1.merge_cells(
+            start_row=title_6_start_row,
+            end_row=title_6_start_row,
+            start_column=title_6_start_col,
+            end_column=title_6_start_col + output_6.shape[1] - 1,
+        )
+        output_6.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_6_start_row
+        )
+
+        #  一级具体簇的信息
+        title_7_start_row = output_6_start_row + len(output_6) + 1 + 2
+        title_7_start_col = 1
+        output_7_start_row = title_7_start_row
+        cell = sheet1.cell(
+            row=title_7_start_row, column=title_7_start_col, value=title_7_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = blue_fill
+        cell.font = Font(bold=True, size=12)
+        sheet1.merge_cells(
+            start_row=title_7_start_row,
+            end_row=title_7_start_row,
+            start_column=title_7_start_col,
+            end_column=title_7_start_col + output_7.shape[1] - 1,
+        )
+        # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+        output_7[["距本地热点总质心", "距本地点总质心"]] = output_7[
+            ["距本地热点总质心", "距本地点总质心"]
+        ].fillna("na")
+        output_7.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_7_start_row
+        )
+        df_suspicious = output_7.loc[output_7["高度可疑"] == "是", :]
+        for row_no in range(
+            output_7_start_row + 2,
+            output_7_start_row + df_suspicious.shape[0] + 2,
+        ):
+            for col_no in range(
+                title_7_start_col, title_7_start_col + df_suspicious.shape[1]
+            ):
+                cell = sheet1.cell(row=row_no, column=col_no)
+                cell.fill = soft_red_fill
+
+        # 8 一级地图
+        map_results_1_path = os.path.join(
+            results_files_folder_path,
+            f"{map_file_name_str}-SPARSE.html",
+        )
+        output_8.save(map_results_1_path)
+
+        # 9 二级具体簇
+        title_9_start_row = output_7_start_row + len(output_7) + 1 + 2
+        title_9_start_col = 1
+        output_9_start_row = title_9_start_row
+        cell = sheet1.cell(
+            row=title_9_start_row, column=title_9_start_col, value=title_9_str
+        )
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = blue_fill
+        cell.font = Font(bold=True, size=12)
+        sheet1.merge_cells(
+            start_row=title_9_start_row,
+            end_row=title_9_start_row,
+            start_column=title_9_start_col,
+            end_column=title_9_start_col + output_9.shape[1] - 1,
+        )
+        # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+        output_9[["距本地热点总质心", "距本地点总质心"]] = output_9[
+            ["距本地热点总质心", "距本地点总质心"]
+        ].fillna("na")
+        output_9.to_excel(
+            writer, sheet_name=sheet_name, index=False, startrow=output_9_start_row
+        )
+        df_suspicious = output_9.loc[output_9["高度可疑"] == "是", :]
+        for row_no in range(
+            output_9_start_row + 2,
+            output_9_start_row + df_suspicious.shape[0] + 2,
+        ):
+            for col_no in range(
+                title_9_start_col, title_9_start_col + df_suspicious.shape[1]
+            ):
+                cell = sheet1.cell(row=row_no, column=col_no)
+                cell.fill = soft_red_fill
+
+        # 10 map2 or str(没有地图)
+        if type(output_10) != str:
+            map_results_2_path = os.path.join(
+                results_files_folder_path,
+                f"{map_file_name_str}-DENSE.html",
+            )
+            output_10.save(map_results_2_path)
+
+    # 打开已保存的 Excel 文件，进行进一步样式设置
+    wb = load_workbook(excel_results_path)
+    ws = wb[sheet_name]
+
+    # 设置列宽
+    for i in range(14):
+        ascii_value = ord("A")
+        col_letter = chr(ascii_value + i)
+        ws.column_dimensions[col_letter].width = 20
+    # ws.column_dimensions['A'].width = 30
+    # ws.column_dimensions['B'].width = 40
+    # ws.column_dimensions['C'].width = 30
+    # 遍历每个单元格并设置居中对齐
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+    wb.save(excel_results_path)
 
 
 def show_results_special_main(
@@ -1802,7 +2086,7 @@ def show_results_special_main(
     dealer_region_name,
     product_group_id,
     year_month_str,
-    save_results=False,
+    save_results=True,
 ):
 
     start_date_str, end_date_str = get_month_start_end(year_month_str)
@@ -1810,8 +2094,6 @@ def show_results_special_main(
     results_files_folder_path = (
         f"results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
     )
-    # if os.path.exists(results_files_folder_path):
-    #     shutil.rmtree(results_files_folder_path)
     os.makedirs(results_files_folder_path, exist_ok=True)
 
     rename_dict = {
@@ -1841,77 +2123,32 @@ def show_results_special_main(
         }
     )
 
-    df_suspicious_dealers = (
-        df_dealer_results.loc[df_dealer_results["is_dealer_suspicious"] == 1, :]
-        .sort_values(by="BELONG_DEALER_NO")
-        .reset_index(drop=True)
-    )
-
     df_suspicious_dealers_final = (
         df_dealer_results.loc[df_dealer_results["is_dealer_suspicious_final"] == 1, :]
         .sort_values(by="BELONG_DEALER_NO")
         .reset_index(drop=True)
     )
-    # product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
-    product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
 
+    product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
     main_title_str_1 = (
         "-" * 30
         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
         + "-" * 30
     )
     print(main_title_str_1)
-    # display_forth_title(
-    #     "-" * 30
-    #     + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
-    #     + "-" * 30
-    # )
     print()
 
     main_title_str_2 = "--- 一级分簇模型参数 ---"
     print(main_title_str_2)
-    # display_fifth_title(main_title_str_2)
-    df_model_parameters_styled = (
-        df_model_parameters.style.format(
-            {
-                "热点扫码量占比阈值": "{:.1f}",  # 浮动数值保留一位小数
-                "热点离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
-            }
-        )
-        .set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},
-            ]  # 内容居中
-        )
-        .hide(axis="index")
-    )
     print(
         tabulate(
             df_model_parameters, headers="keys", tablefmt="pretty", showindex=False
         )
     )
-    # display(df_model_parameters_styled)
     print()
 
     main_title_str_3 = "--- 二级分簇模型参数 ---"
     print(main_title_str_3)
-    # display_fifth_title(main_title_str_3)
-    df_model_parameters_dense_styled = (
-        df_model_parameters_dense.style.format(
-            {
-                "热点扫码量占比阈值": "{:.1f}",  # 浮动数值保留一位小数
-                "热点离散度阈值": "{:.1f}",  # 浮动数值保留一位小数
-            }
-        )
-        .set_table_styles(
-            [
-                {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-                {"selector": "td", "props": [("text-align", "center")]},
-            ]  # 内容居中
-        )
-        .hide(axis="index")
-    )
     print(
         tabulate(
             df_model_parameters_dense,
@@ -1920,7 +2157,6 @@ def show_results_special_main(
             showindex=False,
         )
     )
-    # display(df_model_parameters_dense_styled)
     print()
 
     (
@@ -1931,31 +2167,32 @@ def show_results_special_main(
         output_3,
         title_4_str,
         output_4,
-    ) = show_region_short_results_special_main(
+    ) = show_region_short_results_special(
         df_dealer_results,
         df_total_scanning_locations,
         start_date_str,
         end_date_str,
         dealer_region_name,
-        print_title=False,
     )
 
     if save_results:
-
         if os.path.exists(results_files_folder_path):
             # Use glob to find all files in the directory
-            files = glob.glob(os.path.join(results_files_folder_path, '*'))  # This matches all files and subdirectories
+            files = glob.glob(
+                os.path.join(results_files_folder_path, "*")
+            )  # This matches all files and subdirectories
             for file in files:
                 # Check if it's a file (not a subdirectory)
                 if os.path.isfile(file):
                     os.remove(file)
-                    
+
+        file_name_str = f"{dealer_region_name}-{year_month_str}-{product_group_name}"
         excel_results_path = os.path.join(
             results_files_folder_path,
-            f"{dealer_region_name}-{year_month_str}-{product_group_name}.xlsx",
+            f"{file_name_str}.xlsx",
         )
 
-        # 输出普通大区汇总excel
+        # 输出大区汇总excel
         with pd.ExcelWriter(excel_results_path, engine="openpyxl") as writer:
             # 创建工作表
 
@@ -2133,9 +2370,9 @@ def show_results_special_main(
 
         (
             title_1_str,
-            title_str_2,
+            title_2_str,
             output_2,
-            title_str_3,
+            title_3_str,
             output_3,
             title_4_str,
             output_4,
@@ -2162,241 +2399,154 @@ def show_results_special_main(
         )
 
         if save_results:
-            with pd.ExcelWriter(
-                excel_results_path,
-                engine="openpyxl",
+            excel_file_name_str = file_name_str
+            map_file_name_str = f"{id}-{year_month_str}-品项：{product_group_id}"
+            generate_single_dealer_sheet_special(
+                results_files_folder_path,
+                excel_file_name_str,
+                map_file_name_str,
+                id,
+                title_1_str,
+                title_2_str,
+                output_2,
+                title_3_str,
+                output_3,
+                title_4_str,
+                output_4,
+                title_5_str,
+                output_5,
+                title_6_str,
+                output_6,
+                title_7_str,
+                output_7,
+                title_8_str,
+                output_8,  # map1
+                title_9_str,
+                output_9,
+                title_10_str,
+                output_10,  # map2
                 mode="a",
                 if_sheet_exists="overlay",
-            ) as writer:
-                # 创建工作表
-                # sheet1 = writer.book.create_sheet(id)
-                sheet1 = writer.book[id]
-                blue_fill = PatternFill(
-                    start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
-                )  # 浅蓝色
-                yellow_fill = PatternFill(
-                    start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
-                )
-                soft_red_fill = PatternFill(
-                    start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
-                )
+            )
 
-                # 写入标题 1
-                title_1_start_row = 2
-                title_1_start_col = 1
-                cell = sheet1.cell(
-                    row=title_1_start_row, column=title_1_start_col, value=title_1_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=14)
-                # 判断是否因 无有效经营范围 引发的可疑
-                if output_3.loc[0, '无<有效>经营范围'] == '否':
-                    cell.fill = soft_red_fill
-                else:
-                    cell.fill = yellow_fill
-                sheet1.merge_cells(
-                    start_row=title_1_start_row,
-                    end_row=title_1_start_row,
-                    start_column=title_1_start_col,
-                    end_column=title_1_start_col + 10,
-                )
 
-                # 经营范围
-                title_2_start_row = 4
-                title_2_start_col = 1
-                output_2_start_row = title_2_start_row
-                cell = sheet1.cell(
-                    row=title_2_start_row, column=title_2_start_col, value=title_2_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_2_start_row,
-                    end_row=title_2_start_row,
-                    start_column=title_2_start_col,
-                    end_column=title_2_start_col + (output_2.shape[1]) - 1,
-                )
-                output_2.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_2_start_row
-                )
+def generate_all_dealers_results_special_main(
+    df_dealer_results,
+    df_total_scanning_locations,
+    df_total_centroids,
+    df_dealer_results_dense,
+    df_total_scanning_locations_dense,
+    df_total_centroids_dense,
+    dealer_scope_dict_path,
+    dealer_region_name,
+    product_group_id,
+    year_month_str,
+    save_results=True,
+):
 
-                # 范围内经销商异地信息
-                title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
-                title_3_start_col = 1
-                output_3_start_row = title_3_start_row
-                cell = sheet1.cell(
-                    row=title_3_start_row, column=title_3_start_col, value=title_3_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_3_start_row,
-                    end_row=title_3_start_row,
-                    start_column=title_3_start_col,
-                    end_column=title_3_start_col + output_3.shape[1] - 1,
-                )
-                output_3.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_3_start_row
-                )
+    dealer_results_files_folder_path = (
+        f"dealer_results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
+    )
+    os.makedirs(dealer_results_files_folder_path, exist_ok=True)
+    if save_results:
+        # Use glob to find all files in the directory
+        files = glob.glob(
+            os.path.join(dealer_results_files_folder_path, "*")
+        )  # This matches all files and subdirectories
+        for file in files:
+            # Check if it's a file (not a subdirectory)
+            if os.path.isfile(file):
+                os.remove(file)
 
-                # 一级热点信息
-                title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
-                title_4_start_col = 1
-                output_4_start_row = title_4_start_row
-                cell = sheet1.cell(
-                    row=title_4_start_row, column=title_4_start_col, value=title_4_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_4_start_row,
-                    end_row=title_4_start_row,
-                    start_column=title_4_start_col,
-                    end_column=title_4_start_col + output_4.shape[1] - 1,
-                )
-                output_4.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_4_start_row
-                )
+    df_dealer_results_within_archive = (
+        df_dealer_results.loc[df_dealer_results["is_dealer_within_archive"] == 1,]
+        .sort_values(by="BELONG_DEALER_NO")
+        .reset_index(drop=True)
+    )
+    ids_dealers = list(df_dealer_results_within_archive.BELONG_DEALER_NO)
 
-                # 二级热点信息
-                title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
-                title_5_start_col = 1
-                output_5_start_row = title_5_start_row
-                cell = sheet1.cell(
-                    row=title_5_start_row, column=title_5_start_col, value=title_5_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_5_start_row,
-                    end_row=title_5_start_row,
-                    start_column=title_5_start_col,
-                    end_column=title_5_start_col + output_5.shape[1] - 1,
-                )
-                output_5.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_5_start_row
-                )
+    for id in ids_dealers:
+        df_dealer_dealer_results = df_dealer_results.loc[
+            df_dealer_results.BELONG_DEALER_NO == id, :
+        ].reset_index(drop=True)
+        df_dealer_total_scanning_locations = df_total_scanning_locations.loc[
+            df_total_scanning_locations.BELONG_DEALER_NO == id, :
+        ].reset_index(drop=True)
+        df_dealer_total_centroids = df_total_centroids.loc[
+            df_total_centroids.dealer_id == id, :
+        ].reset_index(drop=True)
 
-                # 可疑经销商开瓶城市统计表(大于五瓶的城市)
-                title_6_start_row = output_5_start_row + len(output_5) + 1 + 2
-                title_6_start_col = 1
-                output_6_start_row = title_6_start_row
-                cell = sheet1.cell(
-                    row=title_6_start_row, column=title_6_start_col, value=title_6_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.font = Font(bold=True, size=12)
-                cell.fill = blue_fill
-                sheet1.merge_cells(
-                    start_row=title_6_start_row,
-                    end_row=title_6_start_row,
-                    start_column=title_6_start_col,
-                    end_column=title_6_start_col + output_6.shape[1] - 1,
-                )
-                output_6.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_6_start_row
-                )
+        df_dealer_dealer_results_dense = df_dealer_results_dense.loc[
+            df_dealer_results_dense.BELONG_DEALER_NO == id, :
+        ].reset_index(drop=True)
+        df_dealer_total_scanning_locations_dense = (
+            df_total_scanning_locations_dense.loc[
+                df_total_scanning_locations_dense.BELONG_DEALER_NO == id, :
+            ].reset_index(drop=True)
+        )
+        df_dealer_total_centroids_dense = df_total_centroids_dense.loc[
+            df_total_centroids_dense.dealer_id == id, :
+        ].reset_index(drop=True)
 
-                #  一级具体簇的信息
-                title_7_start_row = output_6_start_row + len(output_6) + 1 + 2
-                title_7_start_col = 1
-                output_7_start_row = title_7_start_row
-                cell = sheet1.cell(
-                    row=title_7_start_row, column=title_7_start_col, value=title_7_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.fill = blue_fill
-                cell.font = Font(bold=True, size=12)
-                sheet1.merge_cells(
-                    start_row=title_7_start_row,
-                    end_row=title_7_start_row,
-                    start_column=title_7_start_col,
-                    end_column=title_7_start_col + output_7.shape[1] - 1,
-                )
-                # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
-                output_7[['距本地热点总质心', '距本地点总质心']] = output_7[['距本地热点总质心', '距本地点总质心']].fillna('na')
-                output_7.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_7_start_row
-                )
-                df_suspicious = output_7.loc[output_7["高度可疑"] == "是", :]
-                for row_no in range(
-                    output_7_start_row + 2,
-                    output_7_start_row + df_suspicious.shape[0] + 2,
-                ):
-                    for col_no in range(
-                        title_7_start_col, title_7_start_col + df_suspicious.shape[1]
-                    ):
-                        cell = sheet1.cell(row=row_no, column=col_no)
-                        cell.fill = soft_red_fill
+        (
+            title_1_str,
+            title_2_str,
+            output_2,
+            title_3_str,
+            output_3,
+            title_4_str,
+            output_4,
+            title_5_str,
+            output_5,
+            title_6_str,
+            output_6,
+            title_7_str,
+            output_7,
+            title_8_str,
+            output_8,  # map1
+            title_9_str,
+            output_9,
+            title_10_str,
+            output_10,  # map2
+        ) = show_dealer_results_special_main(
+            df_dealer_dealer_results,
+            df_dealer_total_scanning_locations,
+            df_dealer_total_centroids,
+            df_dealer_dealer_results_dense,
+            df_dealer_total_scanning_locations_dense,
+            df_dealer_total_centroids_dense,
+            dealer_scope_dict_path,
+        )
 
-                # 8 一级地图
-                map_results_1_path = os.path.join(
-                    results_files_folder_path,
-                    f"{id}-SPARSE-{year_month_str}-{product_group_name}.html",
-                )
-                output_8.save(map_results_1_path)
-
-                # 9 二级具体簇
-                title_9_start_row = output_7_start_row + len(output_7) + 1 + 2
-                title_9_start_col = 1
-                output_9_start_row = title_9_start_row
-                cell = sheet1.cell(
-                    row=title_9_start_row, column=title_9_start_col, value=title_9_str
-                )
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                cell.fill = blue_fill
-                cell.font = Font(bold=True, size=12)
-                sheet1.merge_cells(
-                    start_row=title_9_start_row,
-                    end_row=title_9_start_row,
-                    start_column=title_9_start_col,
-                    end_column=title_9_start_col + output_9.shape[1] - 1,
-                )
-                # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
-                output_9[['距本地热点总质心', '距本地点总质心']] = output_9[['距本地热点总质心', '距本地点总质心']].fillna('na')
-                output_9.to_excel(
-                    writer, sheet_name=id, index=False, startrow=output_9_start_row
-                )
-                df_suspicious = output_9.loc[output_9["高度可疑"] == "是", :]
-                for row_no in range(
-                    output_9_start_row + 2,
-                    output_9_start_row + df_suspicious.shape[0] + 2,
-                ):
-                    for col_no in range(
-                        title_9_start_col, title_9_start_col + df_suspicious.shape[1]
-                    ):
-                        cell = sheet1.cell(row=row_no, column=col_no)
-                        cell.fill = soft_red_fill
-
-                # 10 map2 or str(没有地图)
-                if type(output_10) != str:
-                    map_results_2_path = os.path.join(
-                        results_files_folder_path,
-                        f"{id}-DENSE-{year_month_str}-{product_group_name}.html",
-                    )
-                    output_10.save(map_results_2_path)
-
-            # 打开已保存的 Excel 文件，进行进一步样式设置
-            wb = load_workbook(excel_results_path)
-            ws = wb[id]
-
-            # 设置列宽
-            for i in range(14):
-                ascii_value = ord("A")
-                col_letter = chr(ascii_value + i)
-                ws.column_dimensions[col_letter].width = 20
-            # ws.column_dimensions['A'].width = 30
-            # ws.column_dimensions['B'].width = 40
-            # ws.column_dimensions['C'].width = 30
-            # 遍历每个单元格并设置居中对齐
-            for row in ws.iter_rows():
-                for cell in row:
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-            wb.save(excel_results_path)
+        if save_results:
+            excel_file_name_str = f"{id}-{year_month_str}-品项：{product_group_id}"
+            map_file_name_str = f"{id}-{year_month_str}-品项：{product_group_id}"
+            generate_single_dealer_sheet_special(
+                dealer_results_files_folder_path,
+                excel_file_name_str,
+                map_file_name_str,
+                id,
+                title_1_str,
+                title_2_str,
+                output_2,
+                title_3_str,
+                output_3,
+                title_4_str,
+                output_4,
+                title_5_str,
+                output_5,
+                title_6_str,
+                output_6,
+                title_7_str,
+                output_7,
+                title_8_str,
+                output_8,  # map1
+                title_9_str,
+                output_9,
+                title_10_str,
+                output_10,  # map2
+                mode="w",
+            )
 
 
 # def show_results_main(
@@ -2405,16 +2555,19 @@ def show_results_special_main(
 #     df_total_centroids,
 #     df_suspicious_hotspots_parameters,
 #     dealer_scope_dict_path,
-#     start_date_str,
-#     end_date_str,
 #     dealer_region_name,
+#     product_group_id,
+#     year_month_str,
+#     save_results=False,
 # ):
+#     start_date_str, end_date_str = get_month_start_end(year_month_str)
 
-#     suspicious_dealers_overall_cols = [
-#         "BELONG_DEALER_NO",
-#         "BELONG_DEALER_NAME",
-#         "PRODUCT_GROUP_NAME",
-#     ]
+#     results_files_folder_path = (
+#         f"results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
+#     )
+#     # if os.path.exists(results_files_folder_path):
+#     #     shutil.rmtree(results_files_folder_path)
+#     os.makedirs(results_files_folder_path, exist_ok=True)
 
 #     rename_dict = {
 #         "radius": "簇半径",
@@ -2440,18 +2593,26 @@ def show_results_special_main(
 #     df_suspicious_dealers = df_suspicious_dealers.sort_values(
 #         by="BELONG_DEALER_NO"
 #     ).reset_index(drop=True)
-#     product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
 
-#     display_forth_title(
+#     product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
+#     # product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
+
+#     main_title_str_1 = (
 #         "-" * 35
 #         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
 #         + "-" * 35
 #     )
+#     print(main_title_str_1)
+#     # display_forth_title(
+#     #     main_title_str_1
+#     # )
 #     print()
 
 #     # print("---模型参数---")
 #     # print(tabulate(df_model_parameters, headers='keys', tablefmt='pretty', showindex=False))
-#     display_fifth_title("模型参数")
+#     main_title_str_2 = "--- 模型参数 ---"
+#     print(main_title_str_2)
+#     # display_fifth_title(main_title_str_2)
 #     df_model_parameters_styled = (
 #         df_model_parameters.style.format(
 #             {
@@ -2467,66 +2628,202 @@ def show_results_special_main(
 #         )
 #         .hide(axis="index")
 #     )
-#     display(df_model_parameters_styled)
+#     print(
+#         tabulate(
+#             df_model_parameters, headers="keys", tablefmt="pretty", showindex=False
+#         )
+#     )
+#     # display(df_model_parameters_styled)
 #     print()
 
-#     # print("---经销商数量统计---")
-#     display_fifth_title("经销商数量统计")
-#     df_region_dealer_statistics = pd.DataFrame(
-#         {
-#             "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
-#             "经营范围未归档经销商数量": df_total_scanning_locations.loc[
-#                 df_total_scanning_locations["is_dealer_within_archive"] == 0, :
-#             ].BELONG_DEALER_NO.nunique(),
-#             "当前规则下可疑经销商数量": df_suspicious_dealers.shape[0],
-#         },
-#         index=[0],
+#     # show_region_short_results-----------------------
+#     (
+#         title_1_str,
+#         title_2_str,
+#         output_2,
+#         title_3_str,
+#         output_3,
+#         title_4_str,
+#         output_4,
+#     ) = show_region_short_results(
+#         df_dealer_results,
+#         df_total_scanning_locations,
+#         start_date_str,
+#         end_date_str,
+#         dealer_region_name,
 #     )
-#     df_region_dealer_statistics_styled = (
-#         df_region_dealer_statistics.style.set_table_styles(
-#             [
-#                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-#                 {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-#             ]
-#         ).hide(axis="index")
-#     )
-#     display(df_region_dealer_statistics_styled)
+
+#     # save excel part
+#     if save_results:
+
+#         if os.path.exists(results_files_folder_path):
+#             # Use glob to find all files in the directory
+#             files = glob.glob(os.path.join(results_files_folder_path, '*'))  # This matches all files and subdirectories
+
+#             for file in files:
+#                 # Check if it's a file (not a subdirectory)
+#                 if os.path.isfile(file):
+#                     os.remove(file)
+
+#         excel_results_path = os.path.join(
+#             results_files_folder_path,
+#             f"{dealer_region_name}-{year_month_str}-{product_group_name}.xlsx",
+#         )
+
+#         # 输出普通大区汇总excel
+#         with pd.ExcelWriter(excel_results_path, engine="openpyxl") as writer:
+#             # 创建工作表
+
+#             sheet1 = writer.book.create_sheet("大区汇总信息")
+#             blue_fill = PatternFill(
+#                 start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+#             )  # 浅蓝色
+#             yellow_fill = PatternFill(
+#                 start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+#             )
+#             soft_red_fill = PatternFill(
+#                 start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+#             )
+#             hyperlink_font = Font(color="0000FF", underline="single")
+#             ids = list(output_3["经销商编码"])
+#             for i, id in enumerate(ids):
+#                 writer.book.create_sheet(id)
+
+#             # 写入标题 1
+#             title_1_start_row = 1
+#             title_1_start_col = 1
+#             cell = sheet1.cell(
+#                 row=title_1_start_row, column=title_1_start_col, value=title_1_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.font = Font(bold=True, size=14)
+#             sheet1.merge_cells(
+#                 start_row=title_1_start_row,
+#                 end_row=title_1_start_row,
+#                 start_column=title_1_start_col,
+#                 end_column=title_1_start_col + 11,
+#             )
+
+#             # 写入标题 2 和 output_2
+#             title_2_start_row = 3
+#             title_2_start_col = 1
+#             output_2_start_row = title_2_start_row
+#             cell = sheet1.cell(
+#                 row=title_2_start_row, column=title_2_start_col, value=title_2_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.font = Font(bold=True, size=12)
+#             cell.fill = blue_fill
+#             sheet1.merge_cells(
+#                 start_row=title_2_start_row,
+#                 end_row=title_2_start_row,
+#                 start_column=title_2_start_col,
+#                 end_column=title_2_start_col + output_2.shape[1] - 1,
+#             )
+#             output_2.to_excel(
+#                 writer,
+#                 sheet_name="大区汇总信息",
+#                 index=False,
+#                 startrow=output_2_start_row,
+#             )
+
+#             title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+#             title_3_start_col = 1
+#             output_3_start_row = title_3_start_row
+#             cell = sheet1.cell(
+#                 row=title_3_start_row, column=title_3_start_col, value=title_3_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.font = Font(bold=True, size=12)
+#             cell.fill = blue_fill
+#             sheet1.merge_cells(
+#                 start_row=title_3_start_row,
+#                 end_row=title_3_start_row,
+#                 start_column=title_3_start_col,
+#                 end_column=title_3_start_col + output_3.shape[1] - 1,
+#             )
+#             output_3.to_excel(
+#                 writer,
+#                 sheet_name="大区汇总信息",
+#                 index=False,
+#                 startrow=output_3_start_row,
+#             )
+
+#             i = 0
+#             for row_no in range(
+#                 output_3_start_row + 2, output_3_start_row + len(output_3) + 2
+#             ):
+#                 cell_hyper = sheet1.cell(row=row_no, column=1)
+#                 cell_hyper.hyperlink = f"#{ids[i]}!A1"
+#                 cell_hyper.font = hyperlink_font
+#                 i += 1
+#             # 并非 无任何有效经营范围而引发的可疑 填充红色
+#             df_no_valid_region = output_3.loc[output_3["无<有效>经营范围"] == "否", :]
+#             for row_no in range(
+#                 output_3_start_row + 2,
+#                 output_3_start_row + df_no_valid_region.shape[0] + 2,
+#             ):
+#                 for col_no in range(
+#                     title_3_start_col, title_3_start_col + df_no_valid_region.shape[1]
+#                 ):
+#                     cell = sheet1.cell(row=row_no, column=col_no)
+#                     cell.fill = soft_red_fill
+#             # 无任何有效经营范围引发的可疑 填充黄色
+#             for row_no in range(
+#                 output_3_start_row + 2 + df_no_valid_region.shape[0],
+#                 output_3_start_row + len(output_3) + 2,
+#             ):
+#                 for col_no in range(
+#                     title_3_start_col, title_3_start_col + output_3.shape[1]
+#                 ):
+#                     cell = sheet1.cell(row=row_no, column=col_no)
+#                     cell.fill = yellow_fill
+
+
+#             title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+#             title_4_start_col = 1
+#             output_4_start_row = title_4_start_row
+#             cell = sheet1.cell(
+#                 row=title_4_start_row, column=title_4_start_col, value=title_4_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.fill = blue_fill
+#             cell.font = Font(bold=True, size=12)
+#             sheet1.merge_cells(
+#                 start_row=title_4_start_row,
+#                 end_row=title_4_start_row,
+#                 start_column=title_4_start_col,
+#                 end_column=title_3_start_col + output_4.shape[1] - 1,
+#             )
+#             output_4.to_excel(
+#                 writer,
+#                 sheet_name="大区汇总信息",
+#                 index=False,
+#                 startrow=output_4_start_row,
+#             )
+
+#         # 打开已保存的 Excel 文件，进行进一步样式设置
+#         wb = load_workbook(excel_results_path)
+#         ws = wb["大区汇总信息"]
+
+#         # 设置列宽
+#         for i in range(9):
+#             ascii_value = ord("A")
+#             col_letter = chr(ascii_value + i)
+#             ws.column_dimensions[col_letter].width = 20
+#         ws.column_dimensions["A"].width = 30
+#         ws.column_dimensions["B"].width = 40
+#         ws.column_dimensions["C"].width = 30
+#         for row in ws.iter_rows():
+#             for cell in row:
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#         wb.save(excel_results_path)
 #     print()
-
-#     # print(f"扫码经销商总数： {df_total_scanning_locations.BELONG_DEALER_NO.nunique()}")
-#     # print(
-#     #     f"经营范围未归档经销商总数： {df_total_scanning_locations.loc[df_total_scanning_locations['is_dealer_within_archive'] == 0, :].BELONG_DEALER_NO.nunique()}"
-#     # )
-#     # print(f"当前规则下可疑经销商数量: {df_suspicious_dealers.shape[0]}")
-#     # print()
-
-#     # print("---可疑经销商汇总表---")
-#     display_fifth_title("可疑经销商汇总表")
-#     df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
-#         :, suspicious_dealers_overall_cols
-#     ]
-#     df_suspicious_dealers_to_show = df_suspicious_dealers_to_show.rename(
-#         columns=rename_dict
-#     )
-#     # print(tabulate(df_suspicious_dealers_to_show , headers='keys', tablefmt='pretty', showindex=False))
-
-#     df_suspicious_dealers_to_show_styled = (
-#         df_suspicious_dealers_to_show.style.set_table_styles(
-#             [
-#                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-#                 {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-#             ]
-#         ).hide(axis="index")
-#     )
-#     display(df_suspicious_dealers_to_show_styled)
-#     print()
-#     print("*" * 150)
 
 #     print()
 #     print("可疑经销商详细信息如下:")
 #     print("=" * 100)
 #     print()
-
 #     ids_suspicious = list(df_suspicious_dealers.BELONG_DEALER_NO)
 #     for id in ids_suspicious:
 #         df_dealer_dealer_results = df_dealer_results.loc[
@@ -2539,12 +2836,180 @@ def show_results_special_main(
 #             df_total_centroids.dealer_id == id, :
 #         ].reset_index(drop=True)
 
-#         show_dealer_results_main(
+#         (
+#             title_1_str,
+#             title_2_str,
+#             output_2,
+#             title_3_str,
+#             output_3,
+#             title_4_str,
+#             output_4,
+#             title_5_str,
+#             output_5,
+#             title_6_str,
+#             output_6,
+#         ) = show_dealer_results_main(
 #             df_dealer_dealer_results,
 #             df_dealer_total_scanning_locations,
 #             df_dealer_total_centroids,
 #             dealer_scope_dict_path,
 #         )
+
+#         if save_results:
+#             with pd.ExcelWriter(
+#                 excel_results_path,
+#                 engine="openpyxl",
+#                 mode="a",
+#                 if_sheet_exists="overlay",
+#             ) as writer:
+#                 # 创建工作表
+#                 # sheet1 = writer.book.create_sheet(id)
+#                 sheet_name = id
+#                 sheet1 = writer.book[sheet_name]
+#                 blue_fill = PatternFill(
+#                     start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+#                 )  # 浅蓝色
+#                 yellow_fill = PatternFill(
+#                     start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+#                 )
+#                 soft_red_fill = PatternFill(
+#                     start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+#                 )
+#                 # 写入标题 1
+#                 title_1_start_row = 2
+#                 title_1_start_col = 1
+#                 cell = sheet1.cell(
+#                     row=title_1_start_row, column=title_1_start_col, value=title_1_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=14)
+#                 # 判断是否因 无有效经营范围 引发的可疑
+#                 if output_3.loc[0, '无<有效>经营范围'] == '否':
+#                     cell.fill = soft_red_fill
+#                 else:
+#                     cell.fill = yellow_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_1_start_row,
+#                     end_row=title_1_start_row,
+#                     start_column=title_1_start_col,
+#                     end_column=title_1_start_col + 10,
+#                 )
+
+#                 # 写入标题 2 和 output_2
+#                 title_2_start_row = 4
+#                 title_2_start_col = 1
+#                 output_2_start_row = title_2_start_row
+#                 cell = sheet1.cell(
+#                     row=title_2_start_row, column=title_2_start_col, value=title_2_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_2_start_row,
+#                     end_row=title_2_start_row,
+#                     start_column=title_2_start_col,
+#                     end_column=title_2_start_col + (output_2.shape[1]) - 1,
+#                 )
+#                 output_2.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_2_start_row
+#                 )
+
+#                 title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+#                 title_3_start_col = 1
+#                 output_3_start_row = title_3_start_row
+#                 cell = sheet1.cell(
+#                     row=title_3_start_row, column=title_3_start_col, value=title_3_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_3_start_row,
+#                     end_row=title_3_start_row,
+#                     start_column=title_3_start_col,
+#                     end_column=title_3_start_col + output_3.shape[1] - 1,
+#                 )
+#                 output_3.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_3_start_row
+#                 )
+
+#                 # 4 具体簇的信息
+#                 title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+#                 title_4_start_col = 1
+#                 output_4_start_row = title_4_start_row
+#                 cell = sheet1.cell(
+#                     row=title_4_start_row, column=title_4_start_col, value=title_4_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.fill = blue_fill
+#                 cell.font = Font(bold=True, size=12)
+#                 sheet1.merge_cells(
+#                     start_row=title_4_start_row,
+#                     end_row=title_4_start_row,
+#                     start_column=title_4_start_col,
+#                     end_column=title_4_start_col + output_4.shape[1] - 1,
+#                 )
+#                 # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+#                 output_4[['距本地热点总质心', '距本地点总质心']] = output_4[['距本地热点总质心', '距本地点总质心']].fillna('na')
+#                 output_4.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_4_start_row
+#                 )
+#                 df_suspicious = output_4.loc[output_4["高度可疑"] == "是", :]
+#                 for row_no in range(
+#                     output_4_start_row + 2,
+#                     output_4_start_row + df_suspicious.shape[0] + 2,
+#                 ):
+#                     for col_no in range(
+#                         title_4_start_col, title_4_start_col + df_suspicious.shape[1]
+#                     ):
+#                         cell = sheet1.cell(row=row_no, column=col_no)
+#                         cell.fill = soft_red_fill
+
+#                 # 5
+#                 title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
+#                 title_5_start_col = 1
+#                 output_5_start_row = title_5_start_row
+#                 cell = sheet1.cell(
+#                     row=title_5_start_row, column=title_5_start_col, value=title_5_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_5_start_row,
+#                     end_row=title_5_start_row,
+#                     start_column=title_5_start_col,
+#                     end_column=title_5_start_col + output_5.shape[1] - 1,
+#                 )
+#                 output_5.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_5_start_row
+#                 )
+
+#                 # 6 output是map
+#                 map_results_path = os.path.join(
+#                     results_files_folder_path,
+#                     f"{id}-{year_month_str}-{product_group_name}.html",
+#                 )
+#                 output_6.save(map_results_path)
+
+#             # 打开已保存的 Excel 文件，进行进一步样式设置
+#             wb = load_workbook(excel_results_path)
+#             ws = wb[id]
+
+#             # 设置列宽
+#             for i in range(14):
+#                 ascii_value = ord("A")
+#                 col_letter = chr(ascii_value + i)
+#                 ws.column_dimensions[col_letter].width = 20
+#             # ws.column_dimensions['A'].width = 30
+#             # ws.column_dimensions['B'].width = 40
+#             # ws.column_dimensions['C'].width = 30
+#             # 遍历每个单元格并设置居中对齐
+#             for row in ws.iter_rows():
+#                 for cell in row:
+#                     cell.alignment = Alignment(horizontal="center", vertical="center")
+#             wb.save(excel_results_path)
 
 
 # def show_results_special_main(
@@ -2557,16 +3022,20 @@ def show_results_special_main(
 #     df_total_centroids_dense,
 #     df_suspicious_hotspots_parameters_dense,
 #     dealer_scope_dict_path,
-#     start_date_str,
-#     end_date_str,
 #     dealer_region_name,
+#     product_group_id,
+#     year_month_str,
+#     save_results=False,
 # ):
 
-#     suspicious_dealers_overall_cols = [
-#         "BELONG_DEALER_NO",
-#         "BELONG_DEALER_NAME",
-#         "PRODUCT_GROUP_NAME",
-#     ]
+#     start_date_str, end_date_str = get_month_start_end(year_month_str)
+
+#     results_files_folder_path = (
+#         f"results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
+#     )
+#     # if os.path.exists(results_files_folder_path):
+#     #     shutil.rmtree(results_files_folder_path)
+#     os.makedirs(results_files_folder_path, exist_ok=True)
 
 #     rename_dict = {
 #         "radius": "簇半径",
@@ -2581,7 +3050,6 @@ def show_results_special_main(
 #         "BELONG_DEALER_NO": "经销商编码",
 #         "BELONG_DEALER_NAME": "经销商名称",
 #         "PRODUCT_GROUP_NAME": "品项名称",
-
 #     }
 
 #     df_model_parameters = df_suspicious_hotspots_parameters.copy().rename(
@@ -2601,28 +3069,31 @@ def show_results_special_main(
 #         .sort_values(by="BELONG_DEALER_NO")
 #         .reset_index(drop=True)
 #     )
-#     df_suspicious_dealers_dense = (
-#         df_dealer_results_dense.loc[
-#             df_dealer_results_dense["is_dealer_suspicious"] == 1, :
-#         ]
+
+#     df_suspicious_dealers_final = (
+#         df_dealer_results.loc[df_dealer_results["is_dealer_suspicious_final"] == 1, :]
 #         .sort_values(by="BELONG_DEALER_NO")
 #         .reset_index(drop=True)
 #     )
-#     product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
+#     # product_group_name = df_suspicious_dealers.loc[0, "PRODUCT_GROUP_NAME"]
+#     product_group_name = df_total_scanning_locations.loc[0, "PRODUCT_GROUP_NAME"]
 
-#     # print(
-#     #     f"-------------------基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下-------------------"
-#     # )
-#     display_forth_title(
+#     main_title_str_1 = (
 #         "-" * 30
 #         + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
 #         + "-" * 30
 #     )
+#     print(main_title_str_1)
+#     # display_forth_title(
+#     #     "-" * 30
+#     #     + f"基于模型v1.0, ({start_date_str} - {end_date_str}),  ({dealer_region_name} - {product_group_name})的结果如下"
+#     #     + "-" * 30
+#     # )
 #     print()
 
-#     # print("---一级分簇模型参数---")
-#     # print(tabulate(df_model_parameters, headers='keys', tablefmt='pretty', showindex=False))
-#     display_fifth_title("一级分簇模型参数")
+#     main_title_str_2 = "--- 一级分簇模型参数 ---"
+#     print(main_title_str_2)
+#     # display_fifth_title(main_title_str_2)
 #     df_model_parameters_styled = (
 #         df_model_parameters.style.format(
 #             {
@@ -2638,12 +3109,17 @@ def show_results_special_main(
 #         )
 #         .hide(axis="index")
 #     )
-#     display(df_model_parameters_styled)
+#     print(
+#         tabulate(
+#             df_model_parameters, headers="keys", tablefmt="pretty", showindex=False
+#         )
+#     )
+#     # display(df_model_parameters_styled)
 #     print()
 
-#     # print("---二级分簇模型参数---")
-#     # print(tabulate(df_model_parameters_dense, headers='keys', tablefmt='pretty', showindex=False))
-#     display_fifth_title("二级分簇模型参数")
+#     main_title_str_3 = "--- 二级分簇模型参数 ---"
+#     print(main_title_str_3)
+#     # display_fifth_title(main_title_str_3)
 #     df_model_parameters_dense_styled = (
 #         df_model_parameters_dense.style.format(
 #             {
@@ -2659,77 +3135,201 @@ def show_results_special_main(
 #         )
 #         .hide(axis="index")
 #     )
-#     display(df_model_parameters_dense_styled)
-#     print()
-
-#     ids_suspicious_total = set(df_suspicious_dealers.BELONG_DEALER_NO) | set(
-#         df_suspicious_dealers_dense.BELONG_DEALER_NO
-#     )
-#     # print(f"扫码经销商总数： {df_total_scanning_locations.BELONG_DEALER_NO.nunique()}")
-#     # print(
-#     #     f"经营范围未归档经销商总数： {df_total_scanning_locations.loc[df_total_scanning_locations['is_dealer_within_archive'] == 0, :].BELONG_DEALER_NO.nunique()}"
-#     # )
-#     # print(f"当前规则下可疑经销商数量: {len(ids_suspicious_total)}")
-#     display_fifth_title("经销商数量统计")
-#     df_region_dealer_statistics = pd.DataFrame(
-#         {
-#             "扫码经销商总数": df_total_scanning_locations.BELONG_DEALER_NO.nunique(),
-#             "经营范围未归档经销商数量": df_total_scanning_locations.loc[
-#                 df_total_scanning_locations["is_dealer_within_archive"] == 0, :
-#             ].BELONG_DEALER_NO.nunique(),
-#             "当前规则下可疑经销商数量": len(ids_suspicious_total),
-#         },
-#         index=[0],
-#     )
-#     df_region_dealer_statistics_styled = (
-#         df_region_dealer_statistics.style.set_table_styles(
-#             [
-#                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-#                 {"selector": "td", "props": [("text-align", "center")]},  # 内容居中
-#             ]
-#         ).hide(axis="index")
-#     )
-#     display(df_region_dealer_statistics_styled)
-#     print()
-
-#     # print("---可疑经销商汇总表---")
-#     display_fifth_title("可疑经销商汇总表")
-#     df_suspicious_dealers_to_show = df_suspicious_dealers.loc[
-#         :, suspicious_dealers_overall_cols
-#     ]
-#     df_suspicious_dealers_to_show_dense = df_suspicious_dealers_dense.loc[
-#         :, suspicious_dealers_overall_cols
-#     ]
-#     df_suspicious_dealers_to_show_total = pd.concat(
-#         [df_suspicious_dealers_to_show, df_suspicious_dealers_to_show_dense], axis=0
-#     ).drop_duplicates(ignore_index=True)
-#     df_suspicious_dealers_to_show_total = (
-#         df_suspicious_dealers_to_show_total.sort_values(
-#             by="BELONG_DEALER_NO", ignore_index=True
+#     print(
+#         tabulate(
+#             df_model_parameters_dense,
+#             headers="keys",
+#             tablefmt="pretty",
+#             showindex=False,
 #         )
 #     )
-#     ids_suspicious_total = list(df_suspicious_dealers_to_show_total.BELONG_DEALER_NO)
-#     df_suspicious_dealers_to_show_total = df_suspicious_dealers_to_show_total.rename(
-#         columns=rename_dict
-#     )
-#     # print(tabulate(df_suspicious_dealers_to_show_total, headers='keys', tablefmt='pretty', showindex=False))
+#     # display(df_model_parameters_dense_styled)
+#     print()
 
-#     df_suspicious_dealers_to_show_total_styled = (
-#         df_suspicious_dealers_to_show_total.style.set_table_styles(
-#             [
-#                 {"selector": "th", "props": [("text-align", "center")]},  # 表头居中
-#                 {"selector": "td", "props": [("text-align", "center")]},
-#             ]  # 内容居中
-#         ).hide(axis="index")
+#     (
+#         title_1_str,
+#         title_2_str,
+#         output_2,
+#         title_3_str,
+#         output_3,
+#         title_4_str,
+#         output_4,
+#     ) = show_region_short_results_special(
+#         df_dealer_results,
+#         df_total_scanning_locations,
+#         start_date_str,
+#         end_date_str,
+#         dealer_region_name,
 #     )
-#     display(df_suspicious_dealers_to_show_total_styled)
-#     print("*" * 150)
+
+#     if save_results:
+
+#         if os.path.exists(results_files_folder_path):
+#             # Use glob to find all files in the directory
+#             files = glob.glob(os.path.join(results_files_folder_path, '*'))  # This matches all files and subdirectories
+#             for file in files:
+#                 # Check if it's a file (not a subdirectory)
+#                 if os.path.isfile(file):
+#                     os.remove(file)
+
+#         excel_results_path = os.path.join(
+#             results_files_folder_path,
+#             f"{dealer_region_name}-{year_month_str}-{product_group_name}.xlsx",
+#         )
+
+#         # 输出普通大区汇总excel
+#         with pd.ExcelWriter(excel_results_path, engine="openpyxl") as writer:
+#             # 创建工作表
+
+#             sheet1 = writer.book.create_sheet("大区汇总信息")
+#             blue_fill = PatternFill(
+#                 start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+#             )  # 浅蓝色
+#             yellow_fill = PatternFill(
+#                 start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+#             )
+#             soft_red_fill = PatternFill(
+#                 start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+#             )
+#             hyperlink_font = Font(color="0000FF", underline="single")
+#             ids = list(output_3["经销商编码"])
+#             for i, id in enumerate(ids):
+#                 writer.book.create_sheet(id)
+
+#             # 写入标题 1
+#             title_1_start_row = 1
+#             title_1_start_col = 1
+#             cell = sheet1.cell(
+#                 row=title_1_start_row, column=title_1_start_col, value=title_1_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.font = Font(bold=True, size=14)
+#             sheet1.merge_cells(
+#                 start_row=title_1_start_row,
+#                 end_row=title_1_start_row,
+#                 start_column=title_1_start_col,
+#                 end_column=title_1_start_col + 11,
+#             )
+
+#             # 写入标题 2 和 output_2
+#             title_2_start_row = 3
+#             title_2_start_col = 1
+#             output_2_start_row = title_2_start_row
+#             cell = sheet1.cell(
+#                 row=title_2_start_row, column=title_2_start_col, value=title_2_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.font = Font(bold=True, size=12)
+#             cell.fill = blue_fill
+#             sheet1.merge_cells(
+#                 start_row=title_2_start_row,
+#                 end_row=title_2_start_row,
+#                 start_column=title_2_start_col,
+#                 end_column=title_2_start_col + output_2.shape[1] - 1,
+#             )
+#             output_2.to_excel(
+#                 writer,
+#                 sheet_name="大区汇总信息",
+#                 index=False,
+#                 startrow=output_2_start_row,
+#             )
+
+#             title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+#             title_3_start_col = 1
+#             output_3_start_row = title_3_start_row
+#             cell = sheet1.cell(
+#                 row=title_3_start_row, column=title_3_start_col, value=title_3_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.font = Font(bold=True, size=12)
+#             cell.fill = blue_fill
+#             sheet1.merge_cells(
+#                 start_row=title_3_start_row,
+#                 end_row=title_3_start_row,
+#                 start_column=title_3_start_col,
+#                 end_column=title_3_start_col + output_3.shape[1] - 1,
+#             )
+#             output_3.to_excel(
+#                 writer,
+#                 sheet_name="大区汇总信息",
+#                 index=False,
+#                 startrow=output_3_start_row,
+#             )
+
+#             i = 0
+#             for row_no in range(
+#                 output_3_start_row + 2, output_3_start_row + len(output_3) + 2
+#             ):
+#                 cell_hyper = sheet1.cell(row=row_no, column=1)
+#                 cell_hyper.hyperlink = f"#{ids[i]}!A1"
+#                 cell_hyper.font = hyperlink_font
+#                 i += 1
+#             # 并非 无任何有效经营范围而引发的可疑 填充红色
+#             df_no_valid_region = output_3.loc[output_3["无<有效>经营范围"] == "否", :]
+#             for row_no in range(
+#                 output_3_start_row + 2,
+#                 output_3_start_row + df_no_valid_region.shape[0] + 2,
+#             ):
+#                 for col_no in range(
+#                     title_3_start_col, title_3_start_col + df_no_valid_region.shape[1]
+#                 ):
+#                     cell = sheet1.cell(row=row_no, column=col_no)
+#                     cell.fill = soft_red_fill
+#             # 无任何有效经营范围引发的可疑 填充黄色
+#             for row_no in range(
+#                 output_3_start_row + 2 + df_no_valid_region.shape[0],
+#                 output_3_start_row + len(output_3) + 2,
+#             ):
+#                 for col_no in range(
+#                     title_3_start_col, title_3_start_col + output_3.shape[1]
+#                 ):
+#                     cell = sheet1.cell(row=row_no, column=col_no)
+#                     cell.fill = yellow_fill
+
+#             title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+#             title_4_start_col = 1
+#             output_4_start_row = title_4_start_row
+#             cell = sheet1.cell(
+#                 row=title_4_start_row, column=title_4_start_col, value=title_4_str
+#             )
+#             cell.alignment = Alignment(horizontal="center", vertical="center")
+#             cell.fill = blue_fill
+#             cell.font = Font(bold=True, size=12)
+#             sheet1.merge_cells(
+#                 start_row=title_4_start_row,
+#                 end_row=title_4_start_row,
+#                 start_column=title_4_start_col,
+#                 end_column=title_3_start_col + output_4.shape[1] - 1,
+#             )
+#             output_4.to_excel(
+#                 writer,
+#                 sheet_name="大区汇总信息",
+#                 index=False,
+#                 startrow=output_4_start_row,
+#             )
+
+#             # 打开已保存的 Excel 文件，进行进一步样式设置
+#         wb = load_workbook(excel_results_path)
+#         ws = wb["大区汇总信息"]
+
+#         # 设置列宽
+#         for i in range(8):
+#             ascii_value = ord("A")
+#             col_letter = chr(ascii_value + i)
+#             ws.column_dimensions[col_letter].width = 20
+#         ws.column_dimensions["A"].width = 30
+#         ws.column_dimensions["B"].width = 40
+#         ws.column_dimensions["C"].width = 30
+#         for row in ws.iter_rows():
+#             for cell in row:
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#         wb.save(excel_results_path)
 #     print()
 
 #     print("可疑经销商详细信息如下:")
 #     print("=" * 100)
 #     print()
-
+#     ids_suspicious_total = list(df_suspicious_dealers_final.BELONG_DEALER_NO)
 #     for id in ids_suspicious_total:
 #         df_dealer_dealer_results = df_dealer_results.loc[
 #             df_dealer_results.BELONG_DEALER_NO == id, :
@@ -2753,7 +3353,27 @@ def show_results_special_main(
 #             df_total_centroids_dense.dealer_id == id, :
 #         ].reset_index(drop=True)
 
-#         show_dealer_results_special_main(
+#         (
+#             title_1_str,
+#             title_2_str,
+#             output_2,
+#             title_3_str,
+#             output_3,
+#             title_4_str,
+#             output_4,
+#             title_5_str,
+#             output_5,
+#             title_6_str,
+#             output_6,
+#             title_7_str,
+#             output_7,
+#             title_8_str,
+#             output_8,  # map1
+#             title_9_str,
+#             output_9,
+#             title_10_str,
+#             output_10,  # map2
+#         ) = show_dealer_results_special_main(
 #             df_dealer_dealer_results,
 #             df_dealer_total_scanning_locations,
 #             df_dealer_total_centroids,
@@ -2762,3 +3382,753 @@ def show_results_special_main(
 #             df_dealer_total_centroids_dense,
 #             dealer_scope_dict_path,
 #         )
+
+#         if save_results:
+#             with pd.ExcelWriter(
+#                 excel_results_path,
+#                 engine="openpyxl",
+#                 mode="a",
+#                 if_sheet_exists="overlay",
+#             ) as writer:
+#                 # 创建工作表
+#                 # sheet1 = writer.book.create_sheet(id)
+#                 sheet_name = id
+#                 sheet1 = writer.book[sheet_name]
+#                 blue_fill = PatternFill(
+#                     start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+#                 )  # 浅蓝色
+#                 yellow_fill = PatternFill(
+#                     start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+#                 )
+#                 soft_red_fill = PatternFill(
+#                     start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+#                 )
+
+#                 # 写入标题 1
+#                 title_1_start_row = 2
+#                 title_1_start_col = 1
+#                 cell = sheet1.cell(
+#                     row=title_1_start_row, column=title_1_start_col, value=title_1_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=14)
+#                 # 判断是否因 无有效经营范围 引发的可疑
+#                 if output_3.loc[0, '无<有效>经营范围'] == '否':
+#                     cell.fill = soft_red_fill
+#                 else:
+#                     cell.fill = yellow_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_1_start_row,
+#                     end_row=title_1_start_row,
+#                     start_column=title_1_start_col,
+#                     end_column=title_1_start_col + 10,
+#                 )
+
+#                 # 经营范围
+#                 title_2_start_row = 4
+#                 title_2_start_col = 1
+#                 output_2_start_row = title_2_start_row
+#                 cell = sheet1.cell(
+#                     row=title_2_start_row, column=title_2_start_col, value=title_2_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_2_start_row,
+#                     end_row=title_2_start_row,
+#                     start_column=title_2_start_col,
+#                     end_column=title_2_start_col + (output_2.shape[1]) - 1,
+#                 )
+#                 output_2.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_2_start_row
+#                 )
+
+#                 # 范围内经销商异地信息
+#                 title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+#                 title_3_start_col = 1
+#                 output_3_start_row = title_3_start_row
+#                 cell = sheet1.cell(
+#                     row=title_3_start_row, column=title_3_start_col, value=title_3_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_3_start_row,
+#                     end_row=title_3_start_row,
+#                     start_column=title_3_start_col,
+#                     end_column=title_3_start_col + output_3.shape[1] - 1,
+#                 )
+#                 output_3.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_3_start_row
+#                 )
+
+#                 # 一级热点信息
+#                 title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+#                 title_4_start_col = 1
+#                 output_4_start_row = title_4_start_row
+#                 cell = sheet1.cell(
+#                     row=title_4_start_row, column=title_4_start_col, value=title_4_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_4_start_row,
+#                     end_row=title_4_start_row,
+#                     start_column=title_4_start_col,
+#                     end_column=title_4_start_col + output_4.shape[1] - 1,
+#                 )
+#                 output_4.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_4_start_row
+#                 )
+
+#                 # 二级热点信息
+#                 title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
+#                 title_5_start_col = 1
+#                 output_5_start_row = title_5_start_row
+#                 cell = sheet1.cell(
+#                     row=title_5_start_row, column=title_5_start_col, value=title_5_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_5_start_row,
+#                     end_row=title_5_start_row,
+#                     start_column=title_5_start_col,
+#                     end_column=title_5_start_col + output_5.shape[1] - 1,
+#                 )
+#                 output_5.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_5_start_row
+#                 )
+
+#                 # 可疑经销商开瓶城市统计表(大于五瓶的城市)
+#                 title_6_start_row = output_5_start_row + len(output_5) + 1 + 2
+#                 title_6_start_col = 1
+#                 output_6_start_row = title_6_start_row
+#                 cell = sheet1.cell(
+#                     row=title_6_start_row, column=title_6_start_col, value=title_6_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_6_start_row,
+#                     end_row=title_6_start_row,
+#                     start_column=title_6_start_col,
+#                     end_column=title_6_start_col + output_6.shape[1] - 1,
+#                 )
+#                 output_6.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_6_start_row
+#                 )
+
+#                 #  一级具体簇的信息
+#                 title_7_start_row = output_6_start_row + len(output_6) + 1 + 2
+#                 title_7_start_col = 1
+#                 output_7_start_row = title_7_start_row
+#                 cell = sheet1.cell(
+#                     row=title_7_start_row, column=title_7_start_col, value=title_7_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.fill = blue_fill
+#                 cell.font = Font(bold=True, size=12)
+#                 sheet1.merge_cells(
+#                     start_row=title_7_start_row,
+#                     end_row=title_7_start_row,
+#                     start_column=title_7_start_col,
+#                     end_column=title_7_start_col + output_7.shape[1] - 1,
+#                 )
+#                 # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+#                 output_7[['距本地热点总质心', '距本地点总质心']] = output_7[['距本地热点总质心', '距本地点总质心']].fillna('na')
+#                 output_7.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_7_start_row
+#                 )
+#                 df_suspicious = output_7.loc[output_7["高度可疑"] == "是", :]
+#                 for row_no in range(
+#                     output_7_start_row + 2,
+#                     output_7_start_row + df_suspicious.shape[0] + 2,
+#                 ):
+#                     for col_no in range(
+#                         title_7_start_col, title_7_start_col + df_suspicious.shape[1]
+#                     ):
+#                         cell = sheet1.cell(row=row_no, column=col_no)
+#                         cell.fill = soft_red_fill
+
+#                 # 8 一级地图
+#                 map_results_1_path = os.path.join(
+#                     results_files_folder_path,
+#                     f"{id}-SPARSE-{year_month_str}-{product_group_name}.html",
+#                 )
+#                 output_8.save(map_results_1_path)
+
+#                 # 9 二级具体簇
+#                 title_9_start_row = output_7_start_row + len(output_7) + 1 + 2
+#                 title_9_start_col = 1
+#                 output_9_start_row = title_9_start_row
+#                 cell = sheet1.cell(
+#                     row=title_9_start_row, column=title_9_start_col, value=title_9_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.fill = blue_fill
+#                 cell.font = Font(bold=True, size=12)
+#                 sheet1.merge_cells(
+#                     start_row=title_9_start_row,
+#                     end_row=title_9_start_row,
+#                     start_column=title_9_start_col,
+#                     end_column=title_9_start_col + output_9.shape[1] - 1,
+#                 )
+#                 # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+#                 output_9[['距本地热点总质心', '距本地点总质心']] = output_9[['距本地热点总质心', '距本地点总质心']].fillna('na')
+#                 output_9.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_9_start_row
+#                 )
+#                 df_suspicious = output_9.loc[output_9["高度可疑"] == "是", :]
+#                 for row_no in range(
+#                     output_9_start_row + 2,
+#                     output_9_start_row + df_suspicious.shape[0] + 2,
+#                 ):
+#                     for col_no in range(
+#                         title_9_start_col, title_9_start_col + df_suspicious.shape[1]
+#                     ):
+#                         cell = sheet1.cell(row=row_no, column=col_no)
+#                         cell.fill = soft_red_fill
+
+#                 # 10 map2 or str(没有地图)
+#                 if type(output_10) != str:
+#                     map_results_2_path = os.path.join(
+#                         results_files_folder_path,
+#                         f"{id}-DENSE-{year_month_str}-{product_group_name}.html",
+#                     )
+#                     output_10.save(map_results_2_path)
+
+#             # 打开已保存的 Excel 文件，进行进一步样式设置
+#             wb = load_workbook(excel_results_path)
+#             ws = wb[id]
+
+#             # 设置列宽
+#             for i in range(14):
+#                 ascii_value = ord("A")
+#                 col_letter = chr(ascii_value + i)
+#                 ws.column_dimensions[col_letter].width = 20
+#             # ws.column_dimensions['A'].width = 30
+#             # ws.column_dimensions['B'].width = 40
+#             # ws.column_dimensions['C'].width = 30
+#             # 遍历每个单元格并设置居中对齐
+#             for row in ws.iter_rows():
+#                 for cell in row:
+#                     cell.alignment = Alignment(horizontal="center", vertical="center")
+#             wb.save(excel_results_path)
+
+
+# def generate_all_dealer_results(df_dealer_results, df_total_scanning_locations, df_total_centroids,
+#                          dealer_scope_dict_path, dealer_region_name, product_group_id, year_month_str, save_results=True):
+#     dealer_results_files_folder_path = f"dealer_results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
+#     os.makedirs(dealer_results_files_folder_path, exist_ok=True)
+
+#     df_dealer_results_within_archive = df_dealer_results.loc[df_dealer_results["is_dealer_within_archive"] == 1, ].sort_values(by="BELONG_DEALER_NO").reset_index(drop=True)
+#     ids_dealers = list(df_dealer_results_within_archive.BELONG_DEALER_NO)
+
+#     for id in ids_dealers:
+#         df_dealer_dealer_results = df_dealer_results.loc[
+#             df_dealer_results.BELONG_DEALER_NO == id, :
+#         ].reset_index(drop=True)
+#         df_dealer_total_scanning_locations = df_total_scanning_locations.loc[
+#             df_total_scanning_locations.BELONG_DEALER_NO == id, :
+#         ].reset_index(drop=True)
+#         df_dealer_total_centroids = df_total_centroids.loc[
+#             df_total_centroids.dealer_id == id, :
+#         ].reset_index(drop=True)
+
+#         (
+#             title_1_str,
+#             title_2_str,
+#             output_2,
+#             title_3_str,
+#             output_3,
+#             title_4_str,
+#             output_4,
+#             title_5_str,
+#             output_5,
+#             title_6_str,
+#             output_6,
+#         ) = show_dealer_results_main(
+#             df_dealer_dealer_results,
+#             df_dealer_total_scanning_locations,
+#             df_dealer_total_centroids,
+#             dealer_scope_dict_path,
+#         )
+
+#         if save_results:
+
+#             excel_results_path = os.path.join(
+#                 dealer_results_files_folder_path,
+#                 f"{id}-{year_month_str}-品项：{product_group_id}.xlsx",
+#             )
+#             with pd.ExcelWriter(
+#                 excel_results_path,
+#                 engine="openpyxl",
+#             ) as writer:
+#                 # 创建工作表
+#                 # sheet1 = writer.book.create_sheet(id)
+#                 # sheet1 = writer.book[id]
+#                 sheet_name = id
+#                 sheet1 = writer.book.create_sheet(sheet_name)
+#                 blue_fill = PatternFill(
+#                     start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+#                 )  # 浅蓝色
+#                 yellow_fill = PatternFill(
+#                     start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+#                 )
+#                 soft_red_fill = PatternFill(
+#                     start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+#                 )
+#                 # 写入标题 1
+#                 title_1_start_row = 2
+#                 title_1_start_col = 1
+#                 cell = sheet1.cell(
+#                     row=title_1_start_row, column=title_1_start_col, value=title_1_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=14)
+#                 # 判断是否因 无有效经营范围 引发的可疑
+#                 if output_3.loc[0, '无<有效>经营范围'] == '否':
+#                     cell.fill = soft_red_fill
+#                 else:
+#                     cell.fill = yellow_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_1_start_row,
+#                     end_row=title_1_start_row,
+#                     start_column=title_1_start_col,
+#                     end_column=title_1_start_col + 10,
+#                 )
+
+#                 # 写入标题 2 和 output_2
+#                 title_2_start_row = 4
+#                 title_2_start_col = 1
+#                 output_2_start_row = title_2_start_row
+#                 cell = sheet1.cell(
+#                     row=title_2_start_row, column=title_2_start_col, value=title_2_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_2_start_row,
+#                     end_row=title_2_start_row,
+#                     start_column=title_2_start_col,
+#                     end_column=title_2_start_col + (output_2.shape[1]) - 1,
+#                 )
+#                 output_2.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_2_start_row
+#                 )
+
+#                 title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+#                 title_3_start_col = 1
+#                 output_3_start_row = title_3_start_row
+#                 cell = sheet1.cell(
+#                     row=title_3_start_row, column=title_3_start_col, value=title_3_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_3_start_row,
+#                     end_row=title_3_start_row,
+#                     start_column=title_3_start_col,
+#                     end_column=title_3_start_col + output_3.shape[1] - 1,
+#                 )
+#                 output_3.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_3_start_row
+#                 )
+
+#                 # 4 具体簇的信息
+#                 title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+#                 title_4_start_col = 1
+#                 output_4_start_row = title_4_start_row
+#                 cell = sheet1.cell(
+#                     row=title_4_start_row, column=title_4_start_col, value=title_4_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.fill = blue_fill
+#                 cell.font = Font(bold=True, size=12)
+#                 sheet1.merge_cells(
+#                     start_row=title_4_start_row,
+#                     end_row=title_4_start_row,
+#                     start_column=title_4_start_col,
+#                     end_column=title_4_start_col + output_4.shape[1] - 1,
+#                 )
+#                 # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+#                 output_4[['距本地热点总质心', '距本地点总质心']] = output_4[['距本地热点总质心', '距本地点总质心']].fillna('na')
+#                 output_4.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_4_start_row
+#                 )
+#                 df_suspicious = output_4.loc[output_4["高度可疑"] == "是", :]
+#                 for row_no in range(
+#                     output_4_start_row + 2,
+#                     output_4_start_row + df_suspicious.shape[0] + 2,
+#                 ):
+#                     for col_no in range(
+#                         title_4_start_col, title_4_start_col + df_suspicious.shape[1]
+#                     ):
+#                         cell = sheet1.cell(row=row_no, column=col_no)
+#                         cell.fill = soft_red_fill
+
+#                 # 5
+#                 title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
+#                 title_5_start_col = 1
+#                 output_5_start_row = title_5_start_row
+#                 cell = sheet1.cell(
+#                     row=title_5_start_row, column=title_5_start_col, value=title_5_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_5_start_row,
+#                     end_row=title_5_start_row,
+#                     start_column=title_5_start_col,
+#                     end_column=title_5_start_col + output_5.shape[1] - 1,
+#                 )
+#                 output_5.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_5_start_row
+#                 )
+
+#                 # 6 output是map
+#                 map_results_path = os.path.join(
+#                     dealer_results_files_folder_path,
+#                     f"{id}-{year_month_str}-品项：{product_group_id}.html",
+#                 )
+#                 output_6.save(map_results_path)
+
+#             # 打开已保存的 Excel 文件，进行进一步样式设置
+#             wb = load_workbook(excel_results_path)
+#             ws = wb[sheet_name]
+
+#             # 设置列宽
+#             for i in range(14):
+#                 ascii_value = ord("A")
+#                 col_letter = chr(ascii_value + i)
+#                 ws.column_dimensions[col_letter].width = 20
+#             # ws.column_dimensions['A'].width = 30
+#             # ws.column_dimensions['B'].width = 40
+#             # ws.column_dimensions['C'].width = 30
+#             # 遍历每个单元格并设置居中对齐
+#             for row in ws.iter_rows():
+#                 for cell in row:
+#                     cell.alignment = Alignment(horizontal="center", vertical="center")
+#             wb.save(excel_results_path)
+
+# def generate_all_dealer_results_special(
+#     df_dealer_results,
+#     df_total_scanning_locations,
+#     df_total_centroids,
+#     df_dealer_results_dense,
+#     df_total_scanning_locations_dense,
+#     df_total_centroids_dense,
+#     dealer_scope_dict_path,
+#     dealer_region_name,
+#     product_group_id,
+#     year_month_str,
+#     save_results=True,
+# ):
+#     dealer_results_files_folder_path = f"dealer_results/{dealer_region_name}/{product_group_id}/{year_month_str}/"
+#     os.makedirs(dealer_results_files_folder_path, exist_ok=True)
+
+#     df_dealer_results_within_archive = df_dealer_results.loc[df_dealer_results["is_dealer_within_archive"] == 1, ].sort_values(by="BELONG_DEALER_NO").reset_index(drop=True)
+#     ids_dealers = list(df_dealer_results_within_archive.BELONG_DEALER_NO)
+#     for id in ids_dealers:
+#         df_dealer_dealer_results = df_dealer_results.loc[
+#             df_dealer_results.BELONG_DEALER_NO == id, :
+#         ].reset_index(drop=True)
+#         df_dealer_total_scanning_locations = df_total_scanning_locations.loc[
+#             df_total_scanning_locations.BELONG_DEALER_NO == id, :
+#         ].reset_index(drop=True)
+#         df_dealer_total_centroids = df_total_centroids.loc[
+#             df_total_centroids.dealer_id == id, :
+#         ].reset_index(drop=True)
+
+#         df_dealer_dealer_results_dense = df_dealer_results_dense.loc[
+#             df_dealer_results_dense.BELONG_DEALER_NO == id, :
+#         ].reset_index(drop=True)
+#         df_dealer_total_scanning_locations_dense = (
+#             df_total_scanning_locations_dense.loc[
+#                 df_total_scanning_locations_dense.BELONG_DEALER_NO == id, :
+#             ].reset_index(drop=True)
+#         )
+#         df_dealer_total_centroids_dense = df_total_centroids_dense.loc[
+#             df_total_centroids_dense.dealer_id == id, :
+#         ].reset_index(drop=True)
+
+#         (
+#             title_1_str,
+#             title_2_str,
+#             output_2,
+#             title_3_str,
+#             output_3,
+#             title_4_str,
+#             output_4,
+#             title_5_str,
+#             output_5,
+#             title_6_str,
+#             output_6,
+#             title_7_str,
+#             output_7,
+#             title_8_str,
+#             output_8,  # map1
+#             title_9_str,
+#             output_9,
+#             title_10_str,
+#             output_10,  # map2
+#         ) = show_dealer_results_special_main(
+#             df_dealer_dealer_results,
+#             df_dealer_total_scanning_locations,
+#             df_dealer_total_centroids,
+#             df_dealer_dealer_results_dense,
+#             df_dealer_total_scanning_locations_dense,
+#             df_dealer_total_centroids_dense,
+#             dealer_scope_dict_path,
+#         )
+
+#         if save_results:
+
+#             excel_results_path = os.path.join(
+#                 dealer_results_files_folder_path,
+#                 f"{id}-{year_month_str}-品项：{product_group_id}.xlsx",
+#             )
+#             with pd.ExcelWriter(
+#                 excel_results_path,
+#                 engine="openpyxl",
+#             ) as writer:
+#                 # 创建工作表
+
+#                 sheet_name = id
+#                 sheet1 = writer.book.create_sheet(sheet_name)
+#                 # sheet1 = writer.book[sheet_name]
+#                 blue_fill = PatternFill(
+#                     start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
+#                 )  # 浅蓝色
+#                 yellow_fill = PatternFill(
+#                     start_color="FFFFE0", end_color="FFFFE0", fill_type="solid"
+#                 )
+#                 soft_red_fill = PatternFill(
+#                     start_color="FAD1D1", end_color="FAD1D1", fill_type="solid"
+#                 )
+
+#                 # 写入标题 1
+#                 title_1_start_row = 2
+#                 title_1_start_col = 1
+#                 cell = sheet1.cell(
+#                     row=title_1_start_row, column=title_1_start_col, value=title_1_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=14)
+#                 # 判断是否因 无有效经营范围 引发的可疑
+#                 if output_3.loc[0, '无<有效>经营范围'] == '否':
+#                     cell.fill = soft_red_fill
+#                 else:
+#                     cell.fill = yellow_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_1_start_row,
+#                     end_row=title_1_start_row,
+#                     start_column=title_1_start_col,
+#                     end_column=title_1_start_col + 10,
+#                 )
+
+#                 # 经营范围
+#                 title_2_start_row = 4
+#                 title_2_start_col = 1
+#                 output_2_start_row = title_2_start_row
+#                 cell = sheet1.cell(
+#                     row=title_2_start_row, column=title_2_start_col, value=title_2_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_2_start_row,
+#                     end_row=title_2_start_row,
+#                     start_column=title_2_start_col,
+#                     end_column=title_2_start_col + (output_2.shape[1]) - 1,
+#                 )
+#                 output_2.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_2_start_row
+#                 )
+
+#                 # 范围内经销商异地信息
+#                 title_3_start_row = output_2_start_row + len(output_2) + 1 + 2
+#                 title_3_start_col = 1
+#                 output_3_start_row = title_3_start_row
+#                 cell = sheet1.cell(
+#                     row=title_3_start_row, column=title_3_start_col, value=title_3_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_3_start_row,
+#                     end_row=title_3_start_row,
+#                     start_column=title_3_start_col,
+#                     end_column=title_3_start_col + output_3.shape[1] - 1,
+#                 )
+#                 output_3.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_3_start_row
+#                 )
+
+#                 # 一级热点信息
+#                 title_4_start_row = output_3_start_row + len(output_3) + 1 + 2
+#                 title_4_start_col = 1
+#                 output_4_start_row = title_4_start_row
+#                 cell = sheet1.cell(
+#                     row=title_4_start_row, column=title_4_start_col, value=title_4_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_4_start_row,
+#                     end_row=title_4_start_row,
+#                     start_column=title_4_start_col,
+#                     end_column=title_4_start_col + output_4.shape[1] - 1,
+#                 )
+#                 output_4.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_4_start_row
+#                 )
+
+#                 # 二级热点信息
+#                 title_5_start_row = output_4_start_row + len(output_4) + 1 + 2
+#                 title_5_start_col = 1
+#                 output_5_start_row = title_5_start_row
+#                 cell = sheet1.cell(
+#                     row=title_5_start_row, column=title_5_start_col, value=title_5_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_5_start_row,
+#                     end_row=title_5_start_row,
+#                     start_column=title_5_start_col,
+#                     end_column=title_5_start_col + output_5.shape[1] - 1,
+#                 )
+#                 output_5.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_5_start_row
+#                 )
+
+#                 # 可疑经销商开瓶城市统计表(大于五瓶的城市)
+#                 title_6_start_row = output_5_start_row + len(output_5) + 1 + 2
+#                 title_6_start_col = 1
+#                 output_6_start_row = title_6_start_row
+#                 cell = sheet1.cell(
+#                     row=title_6_start_row, column=title_6_start_col, value=title_6_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.font = Font(bold=True, size=12)
+#                 cell.fill = blue_fill
+#                 sheet1.merge_cells(
+#                     start_row=title_6_start_row,
+#                     end_row=title_6_start_row,
+#                     start_column=title_6_start_col,
+#                     end_column=title_6_start_col + output_6.shape[1] - 1,
+#                 )
+#                 output_6.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_6_start_row
+#                 )
+
+#                 #  一级具体簇的信息
+#                 title_7_start_row = output_6_start_row + len(output_6) + 1 + 2
+#                 title_7_start_col = 1
+#                 output_7_start_row = title_7_start_row
+#                 cell = sheet1.cell(
+#                     row=title_7_start_row, column=title_7_start_col, value=title_7_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.fill = blue_fill
+#                 cell.font = Font(bold=True, size=12)
+#                 sheet1.merge_cells(
+#                     start_row=title_7_start_row,
+#                     end_row=title_7_start_row,
+#                     start_column=title_7_start_col,
+#                     end_column=title_7_start_col + output_7.shape[1] - 1,
+#                 )
+#                 # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+#                 output_7[['距本地热点总质心', '距本地点总质心']] = output_7[['距本地热点总质心', '距本地点总质心']].fillna('na')
+#                 output_7.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_7_start_row
+#                 )
+#                 df_suspicious = output_7.loc[output_7["高度可疑"] == "是", :]
+#                 for row_no in range(
+#                     output_7_start_row + 2,
+#                     output_7_start_row + df_suspicious.shape[0] + 2,
+#                 ):
+#                     for col_no in range(
+#                         title_7_start_col, title_7_start_col + df_suspicious.shape[1]
+#                     ):
+#                         cell = sheet1.cell(row=row_no, column=col_no)
+#                         cell.fill = soft_red_fill
+
+#                 # 8 一级地图
+#                 map_results_1_path = os.path.join(
+#                     dealer_results_files_folder_path,
+#                     f"{id}-SPARSE-{year_month_str}-品项：{product_group_id}.html",
+#                 )
+#                 output_8.save(map_results_1_path)
+
+#                 # 9 二级具体簇
+#                 title_9_start_row = output_7_start_row + len(output_7) + 1 + 2
+#                 title_9_start_col = 1
+#                 output_9_start_row = title_9_start_row
+#                 cell = sheet1.cell(
+#                     row=title_9_start_row, column=title_9_start_col, value=title_9_str
+#                 )
+#                 cell.alignment = Alignment(horizontal="center", vertical="center")
+#                 cell.fill = blue_fill
+#                 cell.font = Font(bold=True, size=12)
+#                 sheet1.merge_cells(
+#                     start_row=title_9_start_row,
+#                     end_row=title_9_start_row,
+#                     start_column=title_9_start_col,
+#                     end_column=title_9_start_col + output_9.shape[1] - 1,
+#                 )
+#                 # 具体簇的信息中 距离质心的距离如果为 np.nan 在输出excel时替换成'na'(显示提示'不适用')
+#                 output_9[['距本地热点总质心', '距本地点总质心']] = output_9[['距本地热点总质心', '距本地点总质心']].fillna('na')
+#                 output_9.to_excel(
+#                     writer, sheet_name=sheet_name, index=False, startrow=output_9_start_row
+#                 )
+#                 df_suspicious = output_9.loc[output_9["高度可疑"] == "是", :]
+#                 for row_no in range(
+#                     output_9_start_row + 2,
+#                     output_9_start_row + df_suspicious.shape[0] + 2,
+#                 ):
+#                     for col_no in range(
+#                         title_9_start_col, title_9_start_col + df_suspicious.shape[1]
+#                     ):
+#                         cell = sheet1.cell(row=row_no, column=col_no)
+#                         cell.fill = soft_red_fill
+
+#                 # 10 map2 or str(没有地图)
+#                 if type(output_10) != str:
+#                     map_results_2_path = os.path.join(
+#                         dealer_results_files_folder_path,
+#                         f"{id}-DENSE-{year_month_str}-品项：{product_group_id}.html",
+#                     )
+#                     output_10.save(map_results_2_path)
+
+#             # 打开已保存的 Excel 文件，进行进一步样式设置
+#             wb = load_workbook(excel_results_path)
+#             ws = wb[sheet_name]
+
+#             # 设置列宽
+#             for i in range(14):
+#                 ascii_value = ord("A")
+#                 col_letter = chr(ascii_value + i)
+#                 ws.column_dimensions[col_letter].width = 20
+#             # ws.column_dimensions['A'].width = 30
+#             # ws.column_dimensions['B'].width = 40
+#             # ws.column_dimensions['C'].width = 30
+#             # 遍历每个单元格并设置居中对齐
+#             for row in ws.iter_rows():
+#                 for cell in row:
+#                     cell.alignment = Alignment(horizontal="center", vertical="center")
+#             wb.save(excel_results_path)

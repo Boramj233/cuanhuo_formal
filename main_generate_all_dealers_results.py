@@ -1,10 +1,10 @@
-from src import main_show_region_results
+from src import main_generate_all_dealers_results
 import argparse
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate and show region results. (Excel and HTML map.) "
+        description="Generate all dealers results (excels and htmls) . "
     )
 
     # Required arguments
@@ -30,7 +30,7 @@ def main():
     args = parser.parse_args()
 
     print("starting")
-    main_show_region_results(
+    main_generate_all_dealers_results(
         dealer_region_name=args.dealer_region_name,
         product_group_id=args.product_group_id,
         year_month_str=args.year_month_str,

@@ -331,17 +331,48 @@ def model_run_special(
     #     )
 
 
-def main_data_preprocessing(year_month_str, workspace_folder_path="./"):
+def main_data_preprocessing(year_month_str: str, workspace_folder_path: str = "./"):
+    """
+    数据预处理的主程序。给定月份，处理对应月份的raw_data,生成main_data文件夹中的文件。
+
+    Parameters
+    ----------
+    year_month_str: str
+        模型对应的年月份字符串，格式为"%Y%m", 例如"202412"。
+    
+    worspace_folder_path: str
+        该项目工作区文件夹路径, 默认为"目前所在的目录" "./"
+    """
     data_preprocessing_main(year_month_str, workspace_folder_path)
 
 
 def main_run_model(
-    dealer_region_name,
-    product_group_id,
-    year_month_str,
-    workspace_folder_path="./",
-    save_outputs=True,
+    dealer_region_name: str,
+    product_group_id: str,
+    year_month_str: str,
+    workspace_folder_path: str = "./",
+    save_outputs: bool =True,
 ):
+    """
+    运行模型的主程序，生成Outputs文件夹中的文件。
+
+    Parameters
+    ----------
+    dealer_id: str
+        经销商编码。
+
+    product_group_id: str
+        产品品项编码。
+
+    year_month_str: str
+        年月份字符串，格式为"%Y%m"，例如"202412"。
+    
+    worspace_folder_path: str
+        该项目工作区文件夹路径, 默认为"目前所在的目录" "./"
+
+    save_outputs： bool
+        是否生成outputs中的文件。
+    """
 
     (
         df_total_path,
@@ -399,12 +430,32 @@ def main_run_model(
 
 
 def main_show_region_results(
-    dealer_region_name,
-    product_group_id,
-    year_month_str,
-    workspace_folder_path="./",
-    save_results=True,
+    dealer_region_name: str,
+    product_group_id: str,
+    year_month_str: str,
+    workspace_folder_path: str = "./",
+    save_results: bool = True,
 ):
+    """
+    基于模型运行的结果（outputs), 生成经销商窜货预警大区汇总结果。（results)
+
+    Parameters
+    ----------
+    dealer_id: str
+        经销商编码。
+
+    product_group_id: str
+        产品品项编码。
+
+    year_month_str: str
+        年月份字符串，格式为"%Y%m"，例如"202412"。
+    
+    worspace_folder_path: str
+        该项目工作区文件夹路径, 默认为"目前所在的目录" "./"
+
+    save_results： bool
+        是否生成results中的文件。
+    """
 
     _, dealer_scope_dict_path, _, _, parameters_config_file_path, output_folder_path = (
         extract_paths(workspace_folder_path, year_month_str)
@@ -472,12 +523,15 @@ def main_show_region_results(
 
 
 def main_show_dealers_results(
-    dealer_region_name,
-    product_group_id,
-    year_month_str,
-    dealer_id,
-    workspace_folder_path="./",
+    dealer_region_name: str,
+    product_group_id: str,
+    year_month_str: str,
+    dealer_id: str,
+    workspace_folder_path: str = "./",
 ):
+    """
+    基于outputs, 展示单个经销商结果的主程序。（不存储任何结果，目前一般用于在ipynb中查看某个单商结果。）
+    """
 
     _, dealer_scope_dict_path, _, _, parameters_config_file_path, output_folder = (
         extract_paths(workspace_folder_path, year_month_str)
@@ -559,12 +613,33 @@ def main_show_dealers_results(
 
 
 def main_generate_all_dealers_results(
-    dealer_region_name,
-    product_group_id,
-    year_month_str,
-    workspace_folder_path="./",
-    save_results=True,
+    dealer_region_name: str,
+    product_group_id: str,
+    year_month_str: str,
+    workspace_folder_path: str = "./",
+    save_results: bool = True,
+    
 ):
+    """
+    基于模型运行的结果outputs, 生成大区全部在档经销商的单独结果（dealer_results)。
+
+    Parameters
+    ----------
+    dealer_id: str
+        经销商编码。
+
+    product_group_id: str
+        产品品项编码。
+
+    year_month_str: str
+        年月份字符串，格式为"%Y%m"，例如"202412"。
+    
+    worspace_folder_path: str
+        该项目工作区文件夹路径, 默认为"目前所在的目录" "./"
+
+    save_results： bool
+        是否生成dealer_results中的文件。
+    """
 
     _, dealer_scope_dict_path, _, _, parameters_config_file_path, output_folder = (
         extract_paths(workspace_folder_path, year_month_str)

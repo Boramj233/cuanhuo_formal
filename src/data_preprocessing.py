@@ -41,6 +41,8 @@ def generate_df_total_from_raw_data(
 
     4. 储存合并后的扫码记录主数据("df_total.parquet"), 写入"/data/{year_month_str}/main_data/"
 
+    另外将发现的同一编号但不同名字的经销商，硬编码同一改成最新的名字。
+
     """
 
     raw_data_folder = os.path.join(
@@ -212,6 +214,7 @@ def generate_dealer_scope_dict_from_raw_data(
         目前的合并过程以"AREA_NAME"为判断为同一区域的主键，因为相对于"AREA_CODE", 事实为同一区域的名称改变较少。合并过程同一"AREA_NAME"但不同"AREA_CODE"的
         取最新（"EFFECTIVE_DATE"）一条数据中的"AREA_CODE", 最大避免失效"AREA_CODE"出现在主数据中。其它经过模型运行后发现的失效"AREA_NAME"和"AREA_CODE"，目前根据行政区划变动的现实情况，被硬编码替换清洗。
 
+    # 另外剔除了一些已知的在督导那"不算数"的经营范围（Hhhh。。。）
     """
 
     raw_data_folder = os.path.join(

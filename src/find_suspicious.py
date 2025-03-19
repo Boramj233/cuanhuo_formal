@@ -29,10 +29,6 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
     ratio_scanning_t = thresholds["ratio_scanning_t"]
     scanning_count_t = thresholds["scanning_count_t"]
 
-    # std_distance_within_cluster_threshold = np.quantile(
-    #     local_hotspots_std, thresholds["std_quantile_t"]
-    # )
-
     if local_hotspots_std.size > 0:
         std_distance_within_cluster_threshold = np.quantile(
             local_hotspots_std, thresholds["std_quantile_t"]
@@ -47,7 +43,6 @@ def filter_suspicious_hotspot(df_total_centroids, radius, min_samples, **kwargs)
 
     ##################################################################################################################################################
     # 设置可以热点条件
-    # verison 1.0
 
     suspicious_mask = (
         (hotspot_mask)
@@ -293,10 +288,6 @@ def generate_df_dealer_results(df_total_scanning_locations, df_total_centroids):
     ].astype(
         int
     )
-
-    # df_result[['dealer_suspicious_points_ratio', "dealer_suspicious_hotspot_ratio", "dealer_remote_ratio", "dealer_remote_hotspot_ratio"]] = df_result[
-    #     ['dealer_suspicious_points_ratio', "dealer_suspicious_hotspot_ratio", "dealer_remote_ratio", "dealer_remote_hotspot_ratio", ]
-    # ].round(3)
 
     df_result = df_result.reset_index(drop=True)
     return df_result

@@ -1,0 +1,99 @@
+{  
+  "special_dealer_region_names": [
+    ["天津大区", "01"], ["天津大区", "10"], ["天津大区", "16"],
+    ["广东大区", "01"], ["河北大区", "01"], ["湖南大区", "01"]
+  ],
+  "parameters_config": {   
+      "default_config": {
+        "dbscan_parameters_tuple": [4, 6],
+        "dbscan_parameters_tuple_dense": [2, 12],
+        "large_hotspots_threshold": 300,
+        "thresholds":{
+          "dis_hotspots_c_t": 30,
+          "dis_points_c_t": 30,
+          "dis_border_t": 10,
+          "ratio_scanning_t": 0.2,
+          "scanning_count_t": 12,
+          "std_quantile_t": 0.1,
+          "box_count_t": 4
+        },
+        "dense_thresholds": {
+          "dis_hotspots_c_t": 30,
+          "dis_points_c_t": 30,
+          "dis_border_t": 10,
+          "ratio_scanning_t": 0.2,
+          "scanning_count_t": 12,
+          "std_quantile_t": 0.1,
+          "box_count_t": 4
+        }
+      },
+      "河北大区": {
+        "01": {
+          "dbscan_parameters_tuple_dense": [1, 12]
+        }
+      },
+      "天津大区": {
+        "01": {
+          "dbscan_parameters_tuple_dense": [1, 12],
+          "thresholds":{
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          },
+          "dense_thresholds":{
+            "dis_hotspots_c_t": 10,
+            "dis_points_c_t": 10,
+            "dis_border_t": 10,
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          }
+        },
+        "10": {
+          "dbscan_parameters_tuple_dense": [1, 12],
+          "thresholds":{
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          },
+          "dense_thresholds":{
+            "dis_hotspots_c_t": 10,
+            "dis_points_c_t": 10,
+            "dis_border_t": 10,
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          }
+        },
+        "16": {
+          "dbscan_parameters_tuple_dense": [1, 12],
+          "thresholds":{
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          },
+          "dense_thresholds":{
+            "dis_hotspots_c_t": 10,
+            "dis_points_c_t": 10,
+            "dis_border_t": 10,
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          }
+        }
+      },
+      "浙江大区": {
+        "01":{
+          "thresholds":{
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          },
+          "dense_thresholds":{
+            "scanning_count_t": 18,
+            "box_count_t": 6
+          }
+        }
+      },
+      "湖南大区": {
+        "01":{
+          "dbscan_parameters_tuple_dense": [1, 12]
+        }
+      }
+    }
+}
+  
+  

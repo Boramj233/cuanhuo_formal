@@ -14,9 +14,7 @@ def extract_paths(
     workspace_folder_path: str, year_month_str: str
 ) -> tuple[str, str, str, str, str, str]:
     """
-    需要修改！！！！
-
-    基于给定的工作区文件路径和年月份，解析出扫码记录主数据(df_total.parquet)， 经销商品项经营范围字典主数据(dealer_scope_dict.pkl),
+    基于给定的工作区文件路径和年月份，解析出扫码记录主数据(df_total.parquet)， 经销商品项经营范围字典主数据(dealer_scope_dict.pkl), 异地扫码宝贝主数据(df_report.parquet)
     API key等重要敏感信息的配置文件(config.yaml), 窜货模型应用的参数配置文件(parameters.json)和模型输出的文件夹的路径。
 
     Parameters
@@ -32,9 +30,10 @@ def extract_paths(
     tuple[str, str, str, str, str]
         1. 扫码记录主数据(df_total.parquet)的路径。
         2. 经销商品项经营范围字典主数据(dealer_scope_dict.pkl)的路径。
-        3. API key等重要敏感信息的配置文件(config.yaml)的路径。
-        4. 窜货模型应用的参数配置文件(parameters.json)的路径。
-        5. 模型输出的文件夹(outputs/)的路径。
+        3. 异地扫码宝贝主数据(df_report.parquet)的路径。
+        4. API key等重要敏感信息的配置文件(config.yaml)的路径。
+        5. 窜货模型应用的参数配置文件(parameters.json)的路径。
+        6. 模型输出的文件夹(outputs/)的路径。
     """
     data_folder = os.path.join(workspace_folder_path, "data/")
     output_folder = os.path.join(workspace_folder_path, "outputs/")
@@ -57,71 +56,6 @@ def extract_paths(
     )
 
 
-def find_valid_regions(
-    dealer_id: str, product_group_id: str, query_date: str, dealer_scope_dict: dict
-) -> tuple[pd.DataFrame, int]:
-    """
-    基于给定日期，查询给定经销商品项，是否在经销商经营范围字典中存在记录以及在此日期时生效的经营范围(当前未在主模型使用)。
-
-    Parameters
-    ----------
-    dealer_id: str
-        经销商编码。
-
-    product_group_id: str
-        产品品项编码。
-
-    query_date: str
-        给定的查询日期字符串。格式为"%Y-%m-%d"。例如："2024-12-01"。
-
-    dealer_scope_dict: dict
-        清洗后的主数据：经销商品项经营范围字典
-
-    Returns
-    -------
-    tuple[pd.DataFrame, int]
-        pd.DataFrame: 在给定查询日期时，给定的经销商品项的生效经营范围。如果该经销商品项不存在记录，则返回empty df.
-        int: 给定的经销商品项是否在经营范围字典中存在记录。1: 存在; 0: 不存。
-
-
-    """
-    # 转换为 datetime 对象
-    query_date = datetime.strptime(query_date, "%Y-%m-%d")
-
-    is_archive = 0  # if (dealer_id, product_group_id) 在当前经销商合同范围表
-    if (dealer_id, product_group_id) in dealer_scope_dict:
-        is_archive = 1
-        df_dealer_scope = dealer_scope_dict[(dealer_id, product_group_id)]
-        df_valid_region = df_dealer_scope[
-            (query_date >= df_dealer_scope["EFFECTIVE_DATE"])
-            & (query_date <= df_dealer_scope["INACTIVE_DATE"])
-        ]
-
-        if not df_valid_region.empty:
-            df_scope = df_valid_region[
-                ["AREA_CODE", "AREA_NAME", "PROVINCE", "CITY", "DISTRICT", "STREET"]
-            ]
-            return df_scope.reset_index(drop=True), is_archive
-
-        return (
-            pd.DataFrame(
-                columns=[
-                    "AREA_CODE",
-                    "AREA_NAME",
-                    "PROVINCE",
-                    "CITY",
-                    "DISTRICT",
-                    "STREET",
-                ]
-            ),
-            is_archive,
-        )
-    return (
-        pd.DataFrame(
-            columns=["AREA_CODE", "AREA_NAME", "PROVINCE", "CITY", "DISTRICT", "STREET"]
-        ),
-        is_archive,
-    )
 
 
 def find_equivalent_regions(
@@ -149,7 +83,7 @@ def find_equivalent_regions(
         清洗后的主数据：经销商品项经营范围字典
 
     margin_months:
-        “等效经营范围”允许宽容的月份数。默认值为6。
+        “等效经营范围”允许宽容的月份数。默认值为0。
 
     Returns
     -------
@@ -168,13 +102,14 @@ def find_equivalent_regions(
 
     # Subtract months using relativedelta
     target_date = query_date - relativedelta(months=margin_months)
+    target_date_2 = query_date + relativedelta(months=1)
 
     is_archive = 0  # if (dealer_id, product_group_id) 在当前经销商合同范围表
     if (dealer_id, product_group_id) in dealer_scope_dict:
         is_archive = 1
         df_dealer_scope = dealer_scope_dict[(dealer_id, product_group_id)]
         df_equivalent_region = df_dealer_scope.loc[
-            df_dealer_scope["INACTIVE_DATE"] >= target_date, :
+            (df_dealer_scope["INACTIVE_DATE"] >= target_date) & (df_dealer_scope["EFFECTIVE_DATE"] < target_date_2), :
         ]
         df_equivalent_region = df_equivalent_region.sort_values(
             by="INACTIVE_DATE", ascending=False
@@ -973,6 +908,10 @@ def find_closest_point_geodesic(
 def find_all_suspicious_dealers_in_specific_area(
     product_group_id, year_month_str, province=None, city=None, district=None
 ):
+    """
+    查询高度疑似窜货至某给定区域的全部经销商。需跑完并生成全部大区的results后使用。
+    （当前未在主程序中）
+    """
     all_regions = [
         "上海大区",
         "云贵川渝大区",
@@ -1048,7 +987,7 @@ def find_all_suspicious_dealers_in_specific_area(
                     list_suspicious_dealers.append(df_suspicious)
                     print("-" * 50)
 
-            if region == "广东大区" and product_group_id == "01":
+            if region in ["广东大区", "河北大区", "湖南大区"] and product_group_id == "01":
                 folder_path = f"outputs/{region}/{product_group_id}/{year_month_str}/"
                 df_centroids_path = os.path.join(
                     folder_path, "df_total_centroids_dense.pkl"
@@ -1087,6 +1026,71 @@ def find_all_suspicious_dealers_in_specific_area(
 
 
 # 以下函数目前仅为测试时的便利，暂未应用的到主模型中。
+def find_valid_regions(
+    dealer_id: str, product_group_id: str, query_date: str, dealer_scope_dict: dict
+) -> tuple[pd.DataFrame, int]:
+    """
+    基于给定日期，查询给定经销商品项，是否在经销商经营范围字典中存在记录以及在此日期时生效的经营范围(当前未在主模型使用)。
+
+    Parameters
+    ----------
+    dealer_id: str
+        经销商编码。
+
+    product_group_id: str
+        产品品项编码。
+
+    query_date: str
+        给定的查询日期字符串。格式为"%Y-%m-%d"。例如："2024-12-01"。
+
+    dealer_scope_dict: dict
+        清洗后的主数据：经销商品项经营范围字典
+
+    Returns
+    -------
+    tuple[pd.DataFrame, int]
+        pd.DataFrame: 在给定查询日期时，给定的经销商品项的生效经营范围。如果该经销商品项不存在记录，则返回empty df.
+        int: 给定的经销商品项是否在经营范围字典中存在记录。1: 存在; 0: 不存。
+
+
+    """
+    # 转换为 datetime 对象
+    query_date = datetime.strptime(query_date, "%Y-%m-%d")
+
+    is_archive = 0  # if (dealer_id, product_group_id) 在当前经销商合同范围表
+    if (dealer_id, product_group_id) in dealer_scope_dict:
+        is_archive = 1
+        df_dealer_scope = dealer_scope_dict[(dealer_id, product_group_id)]
+        df_valid_region = df_dealer_scope[
+            (query_date >= df_dealer_scope["EFFECTIVE_DATE"])
+            & (query_date <= df_dealer_scope["INACTIVE_DATE"])
+        ]
+
+        if not df_valid_region.empty:
+            df_scope = df_valid_region[
+                ["AREA_CODE", "AREA_NAME", "PROVINCE", "CITY", "DISTRICT", "STREET"]
+            ]
+            return df_scope.reset_index(drop=True), is_archive
+
+        return (
+            pd.DataFrame(
+                columns=[
+                    "AREA_CODE",
+                    "AREA_NAME",
+                    "PROVINCE",
+                    "CITY",
+                    "DISTRICT",
+                    "STREET",
+                ]
+            ),
+            is_archive,
+        )
+    return (
+        pd.DataFrame(
+            columns=["AREA_CODE", "AREA_NAME", "PROVINCE", "CITY", "DISTRICT", "STREET"]
+        ),
+        is_archive,
+    )
 
 
 def add_border_scanning_ratio_to_df_suspicious_dealers(

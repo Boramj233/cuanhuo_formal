@@ -8,9 +8,6 @@ def generate_clean_region_data_main(
     df_report_path: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-
-    需要修改!!!!! 报备问题
-
     基于全国扫码数据, 筛选出指定大区{dealer_region_name}的指定品项{product_group_id}的数据。
     同时移除所筛选的数据中出货经销商(OUT_DEALER_NO)记录存在, 但与所属经销商(BELONG_DEALER_NO)不同的数据，
     避免这种复杂情况影响窜货预警。统一根据所属经销商(BELONG_DEALER_NO)判定每条扫码记录的归属。
@@ -34,9 +31,6 @@ def generate_clean_region_data_main(
     pd.DataFrame
         经过清理后的所选大区和品项的扫码记录。
 
-    Examples
-    --------
-    >>> df_cleaned = generate_clean_region_data_main("河南大区", "/data/202412/main_data/df_total.parquet", "01")
     """
 
     df_total = pd.read_parquet(df_total_path)

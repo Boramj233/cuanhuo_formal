@@ -396,19 +396,6 @@ def clustering_and_verify_remote_for_dealer(
     with open(dealer_scope_dict_path, "rb") as f:
         dealer_scope_dict = pickle.load(f)
 
-    # df_scanning_locations_with_labels, df_centroids = (
-    #     get_scanning_locations_and_centroids(
-    #         df_cleaned,
-    #         dealer_id,
-    #         product_group_id,
-    #         start_date_str,
-    #         end_date_str,
-    #         radius,
-    #         min_samples,
-    #         config_file_path,
-    #     )
-    # )
-
     df_scanning_locations_with_labels = find_clusters_for_dealer(
         df_cleaned,
         dealer_id,
@@ -418,21 +405,12 @@ def clustering_and_verify_remote_for_dealer(
         radius,
         min_samples,
     )
-    # if df_scanning_loactions.empty:
-    #     return pd.DataFrame(), pd.DataFrame()
-
+  
     df_centroids = get_centroids(df_scanning_locations_with_labels, config_file_path)
-    # df_scanning_loactions = df_scanning_loactions.reset_index(drop=True)
-
-    # df_valid_scope, is_within_archive = find_valid_regions_monthly_application(
-    #     dealer_id, product_group_id, start_date_str, end_date_str, dealer_scope_dict
-    # )
-
+ 
     df_valid_scope, is_within_archive = find_equivalent_regions(
         dealer_id, product_group_id, start_date_str, dealer_scope_dict
     )
-
-    # df_valid_scope_short = df_valid_scope[["PROVINCE", "CITY", "DISTRICT", "STREET"]]
     df_centroids_with_remote_label = verify_centroids_within_scope(
         df_centroids, df_valid_scope
     )
@@ -446,7 +424,6 @@ def clustering_and_verify_remote_for_dealer(
         df_centroids_with_remote_label["is_dealer_no_valid_scope"] = 1
 
     df_centroids_with_remote_label["is_dealer_within_archive"] = is_within_archive
-    # df_centroids_with_remote_label['product_group_id'] = product_group_id
     df_centroids_with_remote_label["dealer_total_scanning_count"] = len(
         df_scanning_locations_with_remote_labels
     )
@@ -765,24 +742,10 @@ def calculate_distances_to_local_centroids_for_centroids(
     return df_total_centroids
 
 
-# def find_closest_point_geodesic(fixed_point, coordinates):
-#     min_distance = float('inf')
-#     # min_distance = float("99999")
-#     closest_point = None
-
-#     for coord in coordinates:
-#         coordinate = (coord[0], coord[1])
-#         distance = geodesic(
-#             fixed_point, coordinate
-#         ).kilometers  # Distance in kilometers
-#         if distance < min_distance:
-#             min_distance = distance
-#             closest_point = coord
-
-#     return closest_point, min_distance
-
-
 def calculate_min_distance_to_border(df_total_centroids):
+    """
+    在簇维度信息df_total_centroids增加一列：该簇簇心距离该商有效经营范围边界的最小距离。
+    """
 
     df_total_hotspots = df_total_centroids.loc[
         (~(df_total_centroids["cluster_label"].isin([-1, -2])))
